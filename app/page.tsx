@@ -57,7 +57,7 @@ export default function Home() {
             </p>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <a
-                href="https://discord.gg/apechain"
+                href="https://discord.gg/apeeliteclub"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block bg-[#0154fa] text-white px-6 py-3 rounded-full font-semibold text-lg hover:bg-[#0143d1] transition-colors shadow-lg hover:shadow-[#0154fa]/50"
