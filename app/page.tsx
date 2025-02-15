@@ -22,14 +22,15 @@ export default function Home() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Header is rendered first to ensure it's on top */}
+      {/* Header */}
       <Header />
 
-      {/* DreamLayers is rendered after Header with pointer-events-none */}
+      {/* DreamLayers */}
       <DreamLayers className="pointer-events-none" />
 
-      {/* Main content */}
+      {/* Main Content */}
       <main className="flex-grow pt-24 z-10" ref={containerRef}>
+        {/* Hero Section */}
         <motion.section
           style={{ opacity, scale, rotateX }}
           className="mb-32 perspective-1000"
@@ -42,10 +43,13 @@ export default function Home() {
           </p>
         </motion.section>
 
+        {/* Featured Drops Carousel */}
         <FeaturedDropsCarousel />
 
+        {/* Upcoming Drops Grid */}
         <UpcomingDropsGrid />
 
+        {/* Call-to-Action Section */}
         <section className="py-16 px-4">
           <div className="max-w-4xl mx-auto text-center">
             <h2 className="text-3xl md:text-4xl font-bold mb-8 text-[#0154fa]">
@@ -57,7 +61,7 @@ export default function Home() {
             </p>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <a
-                href="https://discord.gg/apechain"
+                href="https://discord.gg/apeeliteclub"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-block bg-[#0154fa] text-white px-6 py-3 rounded-full font-semibold text-lg hover:bg-[#0143d1] transition-colors shadow-lg hover:shadow-[#0154fa]/50"
