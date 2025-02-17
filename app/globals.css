@@ -35,3 +35,32 @@ body {
   animation: spin-slow 20s linear infinite;
 }
 
+.menu {
+  position: fixed;
+  top: 0;
+  right: -250px; /* Start off-screen to the right */
+  height: 100%;
+  width: 250px; /* Adjust width as needed */
+  background-color: #2d3748; /* Dark background for the menu */
+  transition: right 0.3s ease; /* Smooth transition */
+  z-index: 2000; /* Ensure it appears above other content */
+  padding: 20px; /* Add some padding */
+  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.5); /* Add shadow for depth */
+}
+
+.menu.open {
+  right: 0; /* Slide in from the right */
+}
+
+.menu a {
+  display: block; /* Make links block elements */
+  padding: 10px 0; /* Add padding for links */
+  color: #e2e8f0; /* Link color */
+  text-decoration: none; /* Remove underline */
+  transition: color 0.2s; /* Smooth color transition */
+}
+
+.menu a:hover {
+  color: #0154fa; /* Change color on hover */
+}
+

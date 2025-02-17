@@ -3,12 +3,15 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
+import { useMediaQuery } from 'react-responsive';
 
 export default function Header() {
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
   const [isMetaMaskInstalled, setIsMetaMaskInstalled] = useState<boolean>(false);
   const [showPopup, setShowPopup] = useState<boolean>(false);
   const [dropdownOpen, setDropdownOpen] = useState<boolean>(false);
+  const isMobile = useMediaQuery({ query: '(max-width: 768px)' });
+  const [menuOpen, setMenuOpen] = useState<boolean>(false);
 
   useEffect(() => {
     // Check if MetaMask is installed
@@ -62,43 +65,79 @@ export default function Header() {
     setShowPopup(false);
   };
 
+  const toggleMenu = () => {
+    setMenuOpen(!menuOpen);
+  };
+
+  const toggleDropdown = () => {
+    setDropdownOpen(!dropdownOpen);
+  };
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 p-4 bg-gray-900 bg-opacity-100 backdrop-blur-md pointer-events-auto">
-      <nav className="flex justify-between items-center max-w-7xl mx-auto">
-        <Link href="/" className="flex items-center">
-          <img src="/logo.png" alt="Inception NFT Logo" className="h-16 mr-2" />
-        </Link>
-        <div className="relative flex items-center space-x-6">
-          <Link href="/explore" className="text-gray-300 hover:text-[#0154fa] transition-colors">
-            Explore
+    <>
+      <header className="fixed top-0 left-0 right-0 z-50 p-4 bg-gray-900 bg-opacity-100 backdrop-blur-md pointer-events-auto">
+        <nav className="flex justify-between items-center max-w-7xl mx-auto">
+          <Link href="/" className="flex items-center">
+            <img src="/logo.png" alt="Inception NFT Logo" className="h-16 mr-2" />
           </Link>
-          <Link href="/about" className="text-gray-300 hover:text-[#0154fa] transition-colors">
-            About
-          </Link>
-          <div className="relative">
+          
+          {/* Desktop Navigation Links */}
+          {!isMobile && (
+            <div className="flex items-center space-x-6">
+              <Link href="/explore" className="text-gray-300 hover:text-[#0154fa] transition-colors">
+                Explore
+              </Link>
+              <Link href="/about" className="text-gray-300 hover:text-[#0154fa] transition-colors">
+                About
+              </Link>
+              <button
+                onClick={toggleDropdown}
+                className="px-4 py-2 bg-[#0154fa] text-white rounded-full hover:bg-[#0143d1] transition-colors"
+              >
+                {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "Connect Wallet"}
+              </button>
+              {walletAddress && dropdownOpen && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50">
+                  <Link href="/profile" className="block px-4 py-2 text-gray-800 hover:bg-gray-200" onClick={() => setDropdownOpen(false)}>
+                    Profile
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Hamburger Menu Button for Mobile */}
+          {isMobile && (
+            <button onClick={toggleMenu} className="text-white">
+              {menuOpen ? '✖' : '☰'} {/* Hamburger icon */}
+            </button>
+          )}
+        </nav>
+      </header>
+
+      {/* Sliding Menu for Mobile */}
+      {isMobile && (
+        <div className={`menu ${menuOpen ? 'open' : ''}`}>
+          <h2 className="text-lg font-bold text-white">Menu</h2>
+          <button onClick={toggleMenu} className="absolute top-2 right-2 text-white">
+            &times; {/* Close icon */}
+          </button>
+          <div className="mt-4">
+            <Link href="/explore" className="block py-2 hover:text-[#0154fa] transition-colors">
+              Explore
+            </Link>
+            <Link href="/about" className="block py-2 hover:text-[#0154fa] transition-colors">
+              About
+            </Link>
             <button
-              onClick={connectWallet}
-              className="px-4 py-2 bg-[#0154fa] text-white rounded-full hover:bg-[#0143d1] transition-colors"
-              onMouseEnter={() => setDropdownOpen(true)}
+              onClick={toggleDropdown}
+              className="mt-4 px-4 py-2 bg-[#0154fa] text-white rounded-full hover:bg-[#0143d1] transition-colors"
             >
               {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "Connect Wallet"}
             </button>
-
-            {/* Dropdown Menu */}
-            {walletAddress && dropdownOpen && (
-              <div
-                className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50"
-                onMouseEnter={() => setDropdownOpen(true)}
-                onMouseLeave={() => setDropdownOpen(false)}
-              >
-                <Link href="/profile" className="block px-4 py-2 text-gray-800 hover:bg-gray-200" onClick={() => setDropdownOpen(false)}>
-                  Profile
-                </Link>
-              </div>
-            )}
           </div>
         </div>
-      </nav>
+      )}
 
       {/* Popup for MetaMask installation status */}
       {isMetaMaskInstalled && showPopup && (
@@ -112,6 +151,6 @@ export default function Header() {
           </div>
         </div>
       )}
-    </header>
+    </>
   );
 }
