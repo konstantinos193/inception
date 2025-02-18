@@ -2,6 +2,7 @@ import "./globals.css"
 import { Inter } from "next/font/google"
 import type React from "react"
 import Head from 'next/head'
+import { ProfileProvider } from '@/context/ProfileContext'
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -17,14 +18,14 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <>
+    <ProfileProvider>
       <Head>
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <html lang="en">
         <body className={`${inter.className} dream-bg`}>{children}</body>
       </html>
-    </>
+    </ProfileProvider>
   )
 }
 

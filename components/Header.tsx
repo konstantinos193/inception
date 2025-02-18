@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { ethers } from "ethers";
 import { useMediaQuery } from 'react-responsive';
+import { useProfile } from '@/context/ProfileContext';
 
 export default function Header() {
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const { walletAddress, setWalletAddress } = useProfile();
   const [isMetaMaskInstalled, setIsMetaMaskInstalled] = useState<boolean>(false);
   const [showPopup, setShowPopup] = useState<boolean>(false);
   const [dropdownOpen, setDropdownOpen] = useState<boolean>(false);
@@ -15,26 +15,28 @@ export default function Header() {
 
   useEffect(() => {
     // Check if MetaMask is installed
-    if (window.ethereum) {
+    if (typeof window !== "undefined" && window.ethereum) {
       setIsMetaMaskInstalled(true);
+    } else {
+      console.log("MetaMask is not installed.");
     }
   }, []);
 
   const connectWallet = async () => {
-    if (window.ethereum) {
-      try {
-        // Request account access
-        const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-        const address = accounts[0];
-        setWalletAddress(address);
-
-        // Switch to ApeChain network
-        await switchNetwork();
-      } catch (error) {
-        console.error("Error connecting to wallet:", error);
-      }
-    } else {
+    if (!isMetaMaskInstalled) {
       alert("Please install MetaMask!");
+      return;
+    }
+
+    try {
+      // Request account access
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      const address = accounts[0];
+      console.log("Connected wallet address:", address);
+      setWalletAddress(address);
+    } catch (error) {
+      console.error("Error connecting to wallet:", error);
+      alert("Failed to connect wallet. Please check the console for more details.");
     }
   };
 
@@ -58,6 +60,7 @@ export default function Header() {
       });
     } catch (error) {
       console.error("Error switching network:", error);
+      alert("Failed to switch network. Please check the console for more details.");
     }
   };
 
@@ -90,8 +93,13 @@ export default function Header() {
               <Link href="/about" className="text-gray-300 hover:text-[#0154fa] transition-colors">
                 About
               </Link>
+              {walletAddress && (
+                <Link href="/profile" className="text-gray-300 hover:text-[#0154fa] transition-colors">
+                  Profile
+                </Link>
+              )}
               <button
-                onClick={toggleDropdown}
+                onClick={connectWallet}
                 className="px-4 py-2 bg-[#0154fa] text-white rounded-full hover:bg-[#0143d1] transition-colors"
               >
                 {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "Connect Wallet"}
@@ -129,6 +137,11 @@ export default function Header() {
             <Link href="/about" className="block py-2 hover:text-[#0154fa] transition-colors">
               About
             </Link>
+            {walletAddress && (
+              <Link href="/profile" className="block py-2 hover:text-[#0154fa] transition-colors">
+                Profile
+              </Link>
+            )}
             <button
               onClick={toggleDropdown}
               className="mt-4 px-4 py-2 bg-[#0154fa] text-white rounded-full hover:bg-[#0143d1] transition-colors"

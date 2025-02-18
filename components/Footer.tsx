@@ -6,7 +6,7 @@ import { faXTwitter, faDiscord } from '@fortawesome/free-brands-svg-icons';
 
 export default function Footer() {
   return (
-    <footer className="bg-gray-800 text-gray-400 py-8 z-50 relative mt-12">
+    <footer className="bg-gray-800 text-gray-400 py-8 z-50 relative">
       <div className="max-w-7xl mx-auto px-6">
         {/* Desktop Version */}
         <div className="hidden md:flex flex-col">
@@ -35,7 +35,7 @@ export default function Footer() {
               </ul>
             </div>
             <div className="flex space-x-4">
-              <a href="https://x.com/ApeEliteClub" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
+              <a href="https://x.com/Inceptionlaunch" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
                 <FontAwesomeIcon icon={faXTwitter} className="h-5 w-5" />
               </a>
               <a href="https://discord.gg/apeeliteclub" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
@@ -55,7 +55,7 @@ export default function Footer() {
               <img src="/logo.png" alt="Inception NFT Logo" className="h-16" />
             </div>
             <div className="flex space-x-4">
-              <a href="https://x.com/ApeEliteClub" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
+              <a href="https://x.com/Inceptionlaunch" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
                 <FontAwesomeIcon icon={faXTwitter} className="h-5 w-5" />
               </a>
               <a href="https://discord.gg/apeeliteclub" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
