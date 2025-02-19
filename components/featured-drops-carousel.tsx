@@ -58,8 +58,21 @@ export default function FeaturedDropsCarousel() {
                 <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
                 <div className="absolute bottom-0 left-0 right-0 p-4 md:p-8">
                   <h3 className="text-xl md:text-4xl font-bold text-white mb-2">{currentDrop.name || "Loading..."}</h3>
-                  <p className="text-lg md:text-xl text-gray-300 mb-4">by {currentDrop.artist || "Loading..."}</p>
-                  <p className="text-xl md:text-2xl font-semibold text-[#0154fa] mb-6">{currentDrop.price || "Loading..."} APE</p>
+                  <div className="flex items-center mb-4">
+                    {currentDrop.artist_image && (
+                      <img
+                        src={currentDrop.artist_image}
+                        alt={currentDrop.artist || "Artist"}
+                        className="w-8 h-8 md:w-10 md:h-10 rounded-full mr-2 object-cover"
+                      />
+                    )}
+                    <p className="text-lg md:text-xl text-gray-300">
+                      by {currentDrop.artist || "Loading..."}
+                    </p>
+                  </div>
+                  <p className="text-xl md:text-2xl font-semibold text-[#0154fa] mb-6">
+                    {currentDrop.price === 0 ? "Free" : `${currentDrop.price} APE` || "Loading..."}
+                  </p>
                   <Link
                     href={`/mint/${currentDrop.id}`}
                     className="inline-block bg-[#0154fa] text-white px-6 py-3 rounded-full font-semibold text-lg hover:bg-[#0143d1] transition-colors shadow-lg hover:shadow-[#0154fa]/50"
@@ -88,8 +101,21 @@ export default function FeaturedDropsCarousel() {
                 <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
                 <div className="absolute bottom-0 left-0 right-0 p-4 md:p-8">
                   <h3 className="text-xl md:text-4xl font-bold text-white mb-2">{currentDrop.name || "Loading..."}</h3>
-                  <p className="text-lg md:text-xl text-gray-300 mb-4">by {currentDrop.artist || "Loading..."}</p>
-                  <p className="text-xl md:text-2xl font-semibold text-[#0154fa] mb-6">{currentDrop.price || "Loading..."} APE</p>
+                  <div className="flex items-center mb-4">
+                    {currentDrop.artist_image && (
+                      <img
+                        src={currentDrop.artist_image}
+                        alt={currentDrop.artist || "Artist"}
+                        className="w-8 h-8 md:w-10 md:h-10 rounded-full mr-2 object-cover"
+                      />
+                    )}
+                    <p className="text-lg md:text-xl text-gray-300">
+                      by {currentDrop.artist || "Loading..."}
+                    </p>
+                  </div>
+                  <p className="text-xl md:text-2xl font-semibold text-[#0154fa] mb-6">
+                    {currentDrop.price === 0 ? "Free" : `${currentDrop.price} APE` || "Loading..."}
+                  </p>
                   <Link
                     href={`/mint/${currentDrop.id}`}
                     className="inline-block bg-[#0154fa] text-white px-6 py-3 rounded-full font-semibold text-lg hover:bg-[#0143d1] transition-colors shadow-lg hover:shadow-[#0154fa]/50"
@@ -114,4 +140,3 @@ export default function FeaturedDropsCarousel() {
     </section>
   )
 }
-

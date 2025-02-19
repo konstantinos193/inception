@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, useScroll, useTransform } from "framer-motion";
 import FeaturedDropsCarousel from "@/components/featured-drops-carousel";
@@ -15,13 +15,33 @@ export default function Home() {
     target: containerRef,
     offset: ["start start", "end start"],
   });
+  const [isLoading, setIsLoading] = useState(true);
 
   const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
   const scale = useTransform(scrollYProgress, [0, 0.5], [1, 0.8]);
   const rotateX = useTransform(scrollYProgress, [0, 1], [0, 45]);
 
+  // Simulate loading with useEffect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000); // 2 seconds loading simulation
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen relative">
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 z-50 backdrop-blur-lg flex items-center justify-center">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="w-12 h-12 border-4 border-[#0154fa] border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-gray-400 text-lg">Loading dreams...</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <Header />
 
