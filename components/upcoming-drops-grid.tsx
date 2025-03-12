@@ -30,6 +30,10 @@ export default function UpcomingDropsGrid() {
     fetchUpcomingDrops();
   }, []);
 
+  useEffect(() => {
+    console.log("Upcoming drops data:", upcomingDrops);
+  }, [upcomingDrops]);
+
   return (
     <section className="px-6 mb-32">
       <h2 className="text-4xl font-bold mb-8 text-center text-[#0154fa]">Upcoming Drops</h2>
@@ -56,13 +60,17 @@ export default function UpcomingDropsGrid() {
                   <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
                     <h3 className="text-xl font-semibold text-white">{drop.name}</h3>
                     <p className="text-gray-300">by {drop.artist}</p>
-                    <p className="text-[#0154fa] font-semibold mt-2">{drop.price} ETH</p>
+                    <p className="text-[#0154fa] font-semibold mt-2">
+                      {Number(drop.price) === 0 ? "Free" : `${drop.price} APE`}
+                    </p>
                   </div>
                 </div>
                 <div className="mt-4 space-y-2">
                   <h3 className="text-xl font-semibold text-white">{drop.name}</h3>
                   <p className="text-gray-400">by {drop.artist}</p>
-                  <p className="text-[#0154fa] font-semibold">{drop.price} ETH</p>
+                  <p className="text-[#0154fa] font-semibold">
+                    {Number(drop.price) === 0 ? "Free" : `${drop.price} APE`}
+                  </p>
                   <div className="text-gray-300">
                     <Countdown
                       date={drop.launchDate}

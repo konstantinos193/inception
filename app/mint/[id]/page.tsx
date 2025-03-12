@@ -1,16 +1,60 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ethers } from 'ethers'
-import { Web3Provider } from '@ethersproject/providers'
-import { parseEther } from '@ethersproject/units'
+import { BrowserProvider, Contract, parseEther, isAddress, arrayify } from 'ethers'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FaTwitter, FaDiscord, FaGlobe } from 'react-icons/fa'
 import Countdown from 'react-countdown'
 import { toast } from 'react-hot-toast'
 import DreamLayers from '@/components/dream-layers'
-import { CONTRACT_ABI } from '@/lib/contract'
+import MyNFTCollection from '@/lib/MyNFTCollection.json'
+import { keccak256 } from 'js-sha3'
+import * as ethers from 'ethers'
+
+const APECHAIN = {
+  chainId: '0x8173', // 33139 in hex
+  chainName: 'ApeChain',
+  nativeCurrency: {
+    name: 'APE',
+    symbol: 'APE',
+    decimals: 18,
+  },
+  rpcUrls: ['https://apechain.calderachain.xyz/http'],
+  blockExplorerUrls: ['https://apechain.calderaexplorer.xyz/'],
+};
+
+// Verify ABI import
+if (!MyNFTCollection || !MyNFTCollection.abi) {
+  throw new Error('Failed to load contract ABI');
+}
+
+// Verify ABI structure
+if (!Array.isArray(MyNFTCollection.abi)) {
+  throw new Error('Invalid ABI structure');
+}
+
+// Use the ABI from the JSON file
+const CONTRACT_ABI = MyNFTCollection.abi;
+
+console.log('[DEBUG] ABI:', MyNFTCollection.abi);
+
+const solidityKeccak256 = (types: string[], values: any[]) => {
+  const packed = types.map((type, index) => {
+    const value = values[index];
+    if (type === 'address') {
+      return value.slice(2).padStart(64, '0'); // Addresses are 20 bytes, padded to 32 bytes
+    } else if (type === 'uint256') {
+      return BigInt(value).toString(16).padStart(64, '0'); // uint256 is 32 bytes
+    } else if (type === 'string') {
+      return Buffer.from(value).toString('hex'); // Strings are encoded as UTF-8 bytes
+    } else {
+      throw new Error(`Unsupported type: ${type}`);
+    }
+  }).join('');
+
+  return '0x' + keccak256(Buffer.from(packed, 'hex'));
+};
 
 const MintPage = ({ params }: { params: { id: string } }) => {
   const [collection, setCollection] = useState<any>(null)
@@ -21,6 +65,32 @@ const MintPage = ({ params }: { params: { id: string } }) => {
   const [isMinted, setIsMinted] = useState(false)
   const [totalMinted, setTotalMinted] = useState(0)
   const [address, setAddress] = useState<string | null>(null)
+  const [pricePerNFT, setPricePerNFT] = useState<number | null>(null)
+  const [isButtonDisabled, setIsButtonDisabled] = useState(true)
+  const [mintedCountForWallet, setMintedCountForWallet] = useState(0)
+  const [isFetchingMintedCount, setIsFetchingMintedCount] = useState(false)
+
+  // Define fetchMintedCount here
+  const fetchMintedCount = async () => {
+    if (address) {
+      try {
+        setIsFetchingMintedCount(true);
+        const response = await fetch(`/api/minted-nfts?wallet=${address}&collectionId=${params.id}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch minted NFTs count');
+        }
+
+        const { mintedCount } = await response.json();
+        console.log('Fetched minted count:', mintedCount);
+        setMintedCountForWallet(mintedCount || 0);
+      } catch (error) {
+        console.error('Error fetching minted NFTs count:', error);
+        toast.error('Failed to check minted NFTs count. Please try again.');
+      } finally {
+        setIsFetchingMintedCount(false);
+      }
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,6 +113,93 @@ const MintPage = ({ params }: { params: { id: string } }) => {
     return () => clearTimeout(timeout);
   }, [params.id]);
 
+  useEffect(() => {
+    const checkMintingDisabled = () => {
+      const disabled = isMintingDisabled();
+      console.log('Button disabled:', disabled);
+      setIsButtonDisabled(disabled);
+    };
+
+    checkMintingDisabled();
+  }, [address, collection, currentPhase, totalMinted, mintedCountForWallet]);
+
+  useEffect(() => {
+    if (collection?.phases?.phases) {
+      const now = Date.now();
+      const activePhaseIndex = collection.phases.phases.findIndex(phase => {
+        const startTime = new Date(phase.start).getTime();
+        const endTime = phase.end ? new Date(phase.end).getTime() : Infinity;
+        return now >= startTime && now < endTime;
+      });
+
+        if (activePhaseIndex !== -1) {
+        setCurrentPhase(activePhaseIndex);
+            // Update the price for the new active phase
+            setPricePerNFT(collection.phases.phases[activePhaseIndex].price);
+      }
+    }
+  }, [collection]);
+
+  useEffect(() => {
+    // Block the script from running
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList') {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeName === 'SCRIPT' && node.textContent?.includes('findWalletAddresses')) {
+              node.remove();
+              console.log('Blocked address scanning script');
+            }
+          });
+        }
+      });
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
+  }, []);
+
+  const switchToApeChain = async () => {
+    try {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [APECHAIN],
+      });
+      console.log('Switched to ApeChain');
+    } catch (error) {
+      console.error('Error switching network:', error);
+    }
+  };
+
+  const connectWallet = async () => {
+    try {
+      if (window.ethereum) {
+        const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+        const address = await signer.getAddress();
+        console.log('[DEBUG] Connected wallet:', address);
+        setAddress(address);
+      } else {
+        throw new Error('MetaMask not detected');
+        }
+      } catch (error) {
+      console.error('[DEBUG] Error connecting wallet:', error);
+      alert(`Wallet connection failed: ${error.message}`);
+    }
+  };
+
+  const ensureWalletConnected = async () => {
+    if (!window.ethereum) {
+      throw new Error('Please install MetaMask!');
+    }
+    const provider = new BrowserProvider(window.ethereum);
+    await provider.send("eth_requestAccounts", []);
+    const network = await provider.getNetwork();
+    console.log('Connected to network:', network);
+    return provider;
+  };
+
   const fetchCollection = async () => {
     try {
       setLoading(true);
@@ -51,22 +208,125 @@ const MintPage = ({ params }: { params: { id: string } }) => {
         throw new Error('Failed to fetch collection');
       }
       const data = await response.json();
-      setCollection(data);
       
-      // Fetch total minted count
-      const provider = new Web3Provider(window.ethereum);
-      const contract = new ethers.Contract(
-        data.contract_address,
-        CONTRACT_ABI,
-        provider
-      );
-      const totalMinted = await contract.totalSupply();
-      setTotalMinted(totalMinted.toNumber());
+      // Check if data is valid
+      if (!data || !data.id) {
+        throw new Error('Invalid collection data');
+      }
+      
+      setCollection(data);
+
+      // Ensure wallet is connected
+      const provider = await ensureWalletConnected();
+
+      // If there's a contract address, fetch total supply
+      if (data.contract_address) {
+        const contractAddress = data.contract_address; // Use the contract address from the API
+        const contract = await fetchContract(contractAddress, provider);
+
+        console.log('[DEBUG] Contract methods:', Object.keys(contract));
+        console.log('[DEBUG] Contract interface:', contract.interface.fragments);
+
+        // Use the price from Supabase phases
+        if (data.phases?.phases?.[currentPhase]?.price) {
+          setPricePerNFT(data.phases.phases[currentPhase].price);
+        } else {
+          setPricePerNFT(0); // Default price if not available
+        }
+
+        // Fetch total supply
+        try {
+          const totalMinted = await contract.totalSupply();
+          console.log('[DEBUG] Total Minted:', totalMinted.toString());
+          setTotalMinted(Number(totalMinted));
+        } catch (supplyError) {
+          console.error('[DEBUG] Error fetching total supply:', supplyError);
+          setTotalMinted(0);
+        }
+      } else {
+        // If no contract address, use the price from Supabase
+        if (data.phases?.phases?.[currentPhase]?.price) {
+          setPricePerNFT(data.phases.phases[currentPhase].price);
+        } else {
+          setPricePerNFT(0); // Default price if not available
+        }
+        setTotalMinted(0); // Set default value when no contract
+      }
+
+      console.log('[DEBUG] Contract address:', data.contract_address);
+      console.log('[DEBUG] Contract ABI:', CONTRACT_ABI);
     } catch (error) {
-      console.error('Error fetching collection:', error);
+      console.error('[DEBUG] Error fetching collection:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
       toast.error('Failed to load collection data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchContract = async (contractAddress: string, provider: BrowserProvider) => {
+    try {
+      // Verify contract address format
+      const isValidAddress = isAddress(contractAddress);
+      if (!isValidAddress) {
+        throw new Error(`Invalid contract address: ${contractAddress}`);
+      }
+
+      // Verify ABI is valid
+      if (!Array.isArray(MyNFTCollection.abi)) {
+        throw new Error('Invalid ABI format');
+      }
+
+      // Create contract instance
+      const signer = await provider.getSigner();
+      const contract = new Contract(
+        contractAddress,
+        MyNFTCollection.abi,
+        signer
+      );
+
+      // Verify contract instance
+      if (!contract) {
+        throw new Error('Failed to create contract instance');
+      }
+
+      // Wait for contract to be deployed
+      const code = await provider.getCode(contractAddress);
+      console.log('[DEBUG] Contract code:', code);
+      if (!code || code === '0x') {
+        throw new Error('Contract not deployed at this address');
+      }
+
+      // Verify contract interface exists
+      if (!contract.interface) {
+        throw new Error('Contract interface not available');
+      }
+
+      // Verify contract functions exist
+      if (!contract.interface.fragments) {
+        throw new Error('Contract functions not available in interface');
+      }
+
+      // Get available methods
+      const methods = contract.interface.fragments.map(fragment => fragment.name);
+      if (!methods || methods.length === 0) {
+        throw new Error('No contract methods found');
+      }
+
+      console.log('[DEBUG] Contract methods:', methods);
+
+      // Verify mint function exists
+      if (!methods.includes('mint')) {
+        throw new Error('Mint function not found in contract ABI');
+      }
+
+      return contract;
+    } catch (error) {
+      console.error('[DEBUG] Error initializing contract:', error);
+      throw new Error('Failed to initialize contract: ' + error.message);
     }
   };
 
@@ -81,21 +341,6 @@ const MintPage = ({ params }: { params: { id: string } }) => {
     return (totalMinted / phase.supply) * 100;
   }
 
-  const connectWallet = async () => {
-    if (window.ethereum) {
-      try {
-        const provider = new Web3Provider(window.ethereum);
-        await provider.send("eth_requestAccounts", []);
-        const signer = provider.getSigner();
-        setAddress(await signer.getAddress());
-      } catch (error) {
-        console.error("Error connecting wallet:", error);
-      }
-    } else {
-      alert("Please install MetaMask!");
-    }
-  };
-
   const isWhitelistedForCurrentPhase = () => {
     if (!address || !collection?.phases?.phases?.[currentPhase]) return false
     const phase = collection.phases.phases[currentPhase]
@@ -107,65 +352,108 @@ const MintPage = ({ params }: { params: { id: string } }) => {
   }
 
   const handleMint = async () => {
-    if (!address) {
-      toast.error('Please connect your wallet')
-      connectWallet();
-      return
-    }
-
-    const phase = collection.phases.phases[currentPhase]
-
-    if (phase.isWhitelist && !isWhitelistedForCurrentPhase()) {
-      toast.error('You are not whitelisted for this phase')
-      return
-    }
-
     try {
-      setIsMinting(true)
-      const provider = new Web3Provider(window.ethereum)
-      const signer = provider.getSigner()
-      const contract = new ethers.Contract(collection.contract_address, CONTRACT_ABI, signer)
+      // Ensure the wallet is connected
+      if (!address) {
+        await connectWallet();
+        if (!address) {
+          throw new Error('Please connect your wallet to proceed.');
+        }
+      }
 
-      const price = parseEther((phase.price * quantity).toString())
-      const tx = await contract.mint(quantity, { value: price })
+      // Initialize the provider and contract
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(
+        collection.contract_address, // Contract address
+        MyNFTCollection.abi, // ABI
+        signer // Signer
+      );
 
-      await tx.wait()
-      setIsMinted(true)
-      toast.success('Successfully minted!')
+      // Get the current phase's price directly
+      const now = Date.now();
+      const activePhase = collection.phases.phases.find(phase => {
+        const startTime = new Date(phase.start).getTime();
+        const endTime = phase.end ? new Date(phase.end).getTime() : Infinity;
+        return now >= startTime && now < endTime;
+      });
+
+      if (!activePhase) {
+        throw new Error('No active phase found');
+      }
+
+      const pricePerNFTInWei = parseEther(activePhase.price.toString());
+      const totalValue = pricePerNFTInWei * BigInt(quantity);
+
+      // Debug: Log the payment details
+      console.log('[DEBUG] Payment Details:');
+      console.log('- Price per NFT:', activePhase.price);
+      console.log('- Price per NFT in wei:', pricePerNFTInWei.toString());
+      console.log('- Quantity:', quantity);
+      console.log('- Total value in wei:', totalValue.toString());
+
+      // Send the mint transaction with the correct payment amount and gas limit
+      const tx = await contract.mint(quantity, pricePerNFTInWei, {
+        value: totalValue,
+        gasLimit: 300000, // Set a higher gas limit (e.g., 300,000)
+      });
+
+      console.log('[DEBUG] Mint transaction sent:', tx);
+      await tx.wait();
+      console.log('[DEBUG] Mint transaction confirmed:', tx.hash);
+
+      // Refresh the minted count
+      await fetchMintedCount();
     } catch (error) {
-      console.error('Minting error:', error)
-      toast.error('Failed to mint NFT')
-    } finally {
-      setIsMinting(false)
+      console.error('[DEBUG] Minting error:', error);
+      toast.error(error.message || 'Minting failed. Please try again.');
     }
-  }
+  };
 
   const isMintingDisabled = () => {
-    if (!collection?.phases?.phases?.[currentPhase]) return true
-    const phase = collection.phases.phases[currentPhase]
+    if (!collection?.phases?.phases?.[currentPhase]) return true;
+    const phase = collection.phases.phases[currentPhase];
 
-    if (totalMinted >= phase.supply) return true
-    if (new Date(phase.start).getTime() > Date.now()) return true
-    if (phase.isWhitelist && !isWhitelistedForCurrentPhase()) return true
-    return false
-  }
+    // Check if the wallet has minted the maximum allowed
+    if (mintedCountForWallet >= collection.max_per_wallet) {
+      console.log('Minting disabled: Max per wallet minted');
+      return true;
+    }
+
+    if (totalMinted >= phase.supply) return true;
+    if (new Date(phase.start).getTime() > Date.now()) return true;
+    if (phase.isWhitelist && !isWhitelistedForCurrentPhase()) return true;
+    return false;
+  };
 
   const getMintButtonText = () => {
-    if (!collection?.phases?.phases?.[currentPhase]) return "Loading..."
-    const phase = collection.phases.phases[currentPhase]
+    if (!address) return "Please Connect Wallet";
+    if (isFetchingMintedCount) return "Loading...";
+    if (!collection?.phases?.phases?.[currentPhase]) return "Loading...";
+    const phase = collection.phases.phases[currentPhase];
 
-    if (totalMinted >= phase.supply) return "Sold Out"
-    if (isMinting) return "Minting..."
-    if (phase.isWhitelist && !isWhitelistedForCurrentPhase()) return "Not Whitelisted for this Phase"
-    if (new Date(phase.start).getTime() > Date.now()) return "Minting Not Yet Started"
-    return `Mint ${quantity} NFT${quantity > 1 ? "s" : ""}`
-  }
+    if (mintedCountForWallet >= collection.max_per_wallet) {
+      return "Max Per Wallet Minted";
+    }
+
+    if (totalMinted >= phase.supply) return "Sold Out";
+    if (isMinting) return "Minting...";
+    if (phase.isWhitelist && !isWhitelistedForCurrentPhase()) return "Not Whitelisted for this Phase";
+    if (new Date(phase.start).getTime() > Date.now()) return "Minting Not Yet Started";
+    return `Mint ${quantity} NFT${quantity > 1 ? "s" : ""}`;
+  };
 
   const isPhaseActive = (phase) => {
-    const now = Date.now()
-    const startTime = new Date(phase.start).getTime()
-    const endTime = new Date(phase.end).getTime()
-    return now >= startTime && now < endTime
+    const now = Date.now();
+    const startTime = new Date(phase.start).getTime();
+    
+    // If end is null, the phase is active as long as the start time has passed
+    if (phase.end === null) {
+      return now >= startTime;
+    }
+    
+    const endTime = new Date(phase.end).getTime();
+    return now >= startTime && now < endTime;
   }
 
   const isPhaseUpcoming = (phase) => {
@@ -173,24 +461,46 @@ const MintPage = ({ params }: { params: { id: string } }) => {
   }
 
   const renderCountdown = (phase) => {
-    const now = Date.now()
-    const startTime = new Date(phase.start).getTime()
-    const endTime = new Date(phase.end).getTime()
+    const now = Date.now();
+    const startTime = new Date(phase.start).getTime();
+    
+    // Handle null end time for public sale
+    if (phase.end === null) {
+      if (now < startTime) {
+        return (
+          <div>
+            <p className="text-gray-400 mb-2">Starts in:</p>
+            <Countdown
+              date={startTime}
+              renderer={({ days, hours, minutes, seconds }) => (
+                <span className="text-xl font-bold text-[#0154fa]">
+                  {days}d {hours}h {minutes}m {seconds}s
+                </span>
+              )}
+            />
+          </div>
+        );
+      } else {
+        return <p className="text-gray-400">Phase Active</p>;
+      }
+    }
+    
+    const endTime = new Date(phase.end).getTime();
 
     if (now < startTime) {
       return (
-          <div>
+        <div>
           <p className="text-gray-400 mb-2">Starts in:</p>
           <Countdown
             date={startTime}
-                    renderer={({ days, hours, minutes, seconds }) => (
+            renderer={({ days, hours, minutes, seconds }) => (
               <span className="text-xl font-bold text-[#0154fa]">
-                        {days}d {hours}h {minutes}m {seconds}s
-                      </span>
-                    )}
-                  />
-            </div>
-  )
+                {days}d {hours}h {minutes}m {seconds}s
+              </span>
+            )}
+          />
+        </div>
+      );
     } else if (now < endTime) {
       return (
         <div>
@@ -204,10 +514,10 @@ const MintPage = ({ params }: { params: { id: string } }) => {
             )}
           />
         </div>
-      )
+      );
     } else {
-      return <p className="text-gray-400">Phase Ended</p>
-}
+      return <p className="text-gray-400">Phase Ended</p>;
+    }
   }
 
   const getEligibilityText = (phase: any, walletAddress: string | null) => {
@@ -320,7 +630,14 @@ const MintPage = ({ params }: { params: { id: string } }) => {
             </div>
             {phase && (
               <div className="mb-6">
-                <h3 className="text-lg md:text-xl font-semibold mb-2">Current Phase: {phase.name}</h3>
+                <h3 className="text-lg md:text-xl font-semibold mb-2">
+                  Current Phase: {phase.name}
+                  {isPhaseActive(phase) && (
+                    <span className="ml-2 text-sm bg-[#0154fa] text-white px-2 py-1 rounded">
+                      Active
+                    </span>
+                  )}
+                </h3>
                 <p className="text-xl md:text-2xl font-semibold text-[#0154fa] mb-6">
                   {phase.price === 0 ? "FREE" : `${phase.price} APE`}
                 </p>
@@ -374,7 +691,7 @@ const MintPage = ({ params }: { params: { id: string } }) => {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="w-full bg-[#0154fa] text-white py-3 rounded-md text-xl font-semibold hover:bg-[#0143d1] transition-colors shadow-lg hover:shadow-[#0154fa]/50 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isMintingDisabled() || isMinting}
+              disabled={isButtonDisabled || isMinting || isFetchingMintedCount}
               onClick={handleMint}
             >
               {getMintButtonText()}

@@ -52,23 +52,26 @@ export default function ProfilePage() {
       const { data, error } = await supabase
         .from('minted_nfts')
         .select(`
-          *,
+          id,
+          token_id,
+          minted_at,
+          collection_id,
           nft_collections (
             name,
             image
           )
         `)
-        .eq('minter_address', address.toLowerCase())
-        .order('mint_date', { ascending: false })
+        .eq('wallet_address', address.toLowerCase())
+        .order('minted_at', { ascending: false })
 
       if (error) throw error
 
       if (data) {
         const formattedNFTs = data.map(nft => ({
           id: nft.id,
-          collection_name: nft.nft_collections.name,
-          collection_image: nft.nft_collections.image,
-          mint_date: new Date(nft.mint_date).toLocaleDateString(),
+          collection_name: nft.nft_collections?.name || 'Uncategorized',
+          collection_image: nft.nft_collections?.image || '/placeholder.svg',
+          mint_date: new Date(nft.minted_at).toLocaleDateString(),
           token_id: nft.token_id
         }))
         setMintedNFTs(formattedNFTs)
@@ -84,29 +87,35 @@ export default function ProfilePage() {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('address', address.toLowerCase())
-        .single()
+        .eq('address', address.toLowerCase());
 
-      if (error) throw error
+      if (error) throw error;
 
-      if (data) {
-        setProfile(data)
+      if (data && data.length > 0) {
+        // If a profile exists, set it
+        setProfile(data[0]);
       } else {
-        // Create default profile
+        // If no profile exists, create a default one
         const defaultProfile = {
           address: address.toLowerCase(),
           username: `${address.slice(0, 6)}...${address.slice(-4)}`,
           bio: '',
           profile_picture: '/placeholder.svg?height=200&width=200'
-        }
-        await supabase.from('profiles').insert([defaultProfile])
-        setProfile(defaultProfile)
+        };
+
+        const { error: insertError } = await supabase
+          .from('profiles')
+          .insert([defaultProfile]);
+
+        if (insertError) throw insertError;
+
+        setProfile(defaultProfile);
       }
     } catch (error) {
-      console.error('Error:', error)
-      toast.error('Failed to fetch profile')
+      console.error('Error:', error);
+      toast.error('Failed to fetch profile');
     }
-  }
+  };
 
   const handleProfileUpdate = async (updatedProfile: Profile) => {
     try {
@@ -137,6 +146,31 @@ export default function ProfilePage() {
     }
   }
 
+  const deleteCollection = async (collectionId: string) => {
+    try {
+      // First check if there are any associated NFTs
+      const { count } = await supabase
+        .from('minted_nfts')
+        .select('*', { count: 'exact' })
+        .eq('collection_id', collectionId);
+
+      if (count && count > 0) {
+        throw new Error('Cannot delete collection with associated NFTs');
+      }
+
+      const { error } = await supabase
+        .from('nft_collections')
+        .delete()
+        .eq('id', collectionId);
+
+      if (error) throw error;
+      toast.success('Collection deleted successfully');
+    } catch (error) {
+      console.error('Error deleting collection:', error);
+      toast.error(error.message || 'Failed to delete collection');
+    }
+  };
+
   if (loading) {
     return <div>Loading...</div>
   }
@@ -149,13 +183,7 @@ export default function ProfilePage() {
           <div className="text-center">
             <h1 className="text-4xl font-bold mb-4">Oops!</h1>
             <p className="text-lg">You need to connect your wallet to access your profile.</p>
-            <p className="text-sm text-gray-400">Please click the button below to connect your wallet.</p>
-            <button
-              onClick={() => {/* Add your connect wallet logic here */}}
-              className="mt-4 px-4 py-2 bg-[#0154fa] text-white rounded-full hover:bg-[#0143d1] transition-colors"
-            >
-              Connect Wallet
-            </button>
+            <p className="text-sm text-gray-400">Please use the wallet connection button in the header.</p>
           </div>
         </div>
         <Footer />
