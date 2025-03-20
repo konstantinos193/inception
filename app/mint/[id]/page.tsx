@@ -385,7 +385,13 @@ const MintPage = ({ params }: { params: { id: string } }) => {
 
       // Check if the current phase's supply has been reached
       if (totalMinted >= getCurrentPhaseMaxSupply()) {
-        throw new Error('Current phase supply reached. Cannot mint more NFTs.');
+        // Automatically switch to the next phase if available
+        if (currentPhase < collection.phases.phases.length - 1) {
+          setCurrentPhase(currentPhase + 1);
+          toast.success('Phase ended, moving to the next phase.');
+        } else {
+          throw new Error('Current phase supply reached. Cannot mint more NFTs.');
+        }
       }
 
       // Initialize the provider and contract
@@ -447,7 +453,7 @@ const MintPage = ({ params }: { params: { id: string } }) => {
       return true;
     }
 
-    if (totalMinted >= phase.supply) return true;
+    if (totalMinted >= phase.supply) return true; // This will trigger the phase switch
     if (new Date(phase.start).getTime() > Date.now()) return true;
     if (phase.isWhitelist && !isWhitelistedForCurrentPhase()) return true;
     return false;
