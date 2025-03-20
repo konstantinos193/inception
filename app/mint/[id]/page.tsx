@@ -394,6 +394,12 @@ const MintPage = ({ params }: { params: { id: string } }) => {
         }
       }
 
+      // Check if the wallet has already minted the maximum allowed for this phase
+      const maxPerWallet = collection.phases.phases[currentPhase].max_per_wallet;
+      if (mintedCountForWallet >= maxPerWallet) {
+        throw new Error('You have already minted the maximum allowed NFTs for this phase.');
+      }
+
       // Initialize the provider and contract
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
@@ -659,7 +665,7 @@ const MintPage = ({ params }: { params: { id: string } }) => {
             <div className="bg-gray-800 p-6 rounded-lg mb-6">
               <h2 className="text-xl md:text-2xl font-semibold mb-4">Mint Details</h2>
               <p>Total Supply: {collection.total_supply}</p>
-              <p>Max Per Wallet: {collection.max_per_wallet}</p>
+              <p>Max Per Wallet: {collection.phases.phases[currentPhase]?.max_per_wallet}</p>
             </div>
             {phase && (
               <div className="mb-6">
