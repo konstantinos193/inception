@@ -364,13 +364,20 @@ const MintPage = ({ params }: { params: { id: string } }) => {
   }
 
   const isWhitelistedForCurrentPhase = () => {
-    if (!address || !collection?.phases?.phases?.[currentPhase]) return false
-    const phase = collection.phases.phases[currentPhase]
-    if (!phase.isWhitelist) return true
+    if (!address || !collection?.phases?.phases?.[currentPhase]) return false;
+    const phase = collection.phases.phases[currentPhase];
+
+    // Check if whitelists are loaded
+    if (phase.whitelists === null || phase.whitelists.length === 0) {
+      setWhitelistsNotLoaded(true); // Set state to indicate whitelists are not loaded
+      return false; // Not whitelisted since we don't have the list
+    }
+
+    if (!phase.isWhitelist) return true; // Public phase, no whitelist check
 
     return phase.whitelists
       .map((addr: string) => addr.toLowerCase())
-      .includes(address.toLowerCase())
+      .includes(address.toLowerCase());
   }
 
   const handleMint = async () => {
@@ -385,12 +392,22 @@ const MintPage = ({ params }: { params: { id: string } }) => {
 
       // Check if the current phase's supply has been reached
       if (totalMinted >= getCurrentPhaseMaxSupply()) {
-        // Automatically switch to the next phase if available
-        if (currentPhase < collection.phases.phases.length - 1) {
-          setCurrentPhase(currentPhase + 1);
-          toast.success('Phase ended, moving to the next phase.');
+        const currentPhaseData = collection.phases.phases[currentPhase];
+        
+        // Check if the current phase is a never-ending phase
+        if (currentPhaseData.end === null) {
+          // If it's a never-ending phase, you can choose to keep it active
+          // or display a message that the supply is exhausted
+          toast.error('The supply for this phase has been minted.');
+          return; // Prevent further minting
         } else {
-          throw new Error('Current phase supply reached. Cannot mint more NFTs.');
+          // Automatically switch to the next phase if available
+          if (currentPhase < collection.phases.phases.length - 1) {
+            setCurrentPhase(currentPhase + 1);
+            toast.success('Phase ended, moving to the next phase.');
+          } else {
+            throw new Error('Current phase supply reached. Cannot mint more NFTs.');
+          }
         }
       }
 
@@ -493,29 +510,7 @@ const MintPage = ({ params }: { params: { id: string } }) => {
   const renderCountdown = (phase) => {
     const now = Date.now();
     const startTime = new Date(phase.start).getTime();
-    
-    // Handle null end time for public sale
-    if (phase.end === null) {
-      if (now < startTime) {
-        return (
-          <div>
-            <p className="text-gray-400 mb-2">Starts in:</p>
-            <Countdown
-              date={startTime}
-              renderer={({ days, hours, minutes, seconds }) => (
-                <span className="text-xl font-bold text-[#0154fa]">
-                  {days}d {hours}h {minutes}m {seconds}s
-                </span>
-              )}
-            />
-          </div>
-        );
-      } else {
-        return <p className="text-gray-400">Phase Active</p>;
-      }
-    }
-    
-    const endTime = new Date(phase.end).getTime();
+    const endTime = phase.end ? new Date(phase.end).getTime() : Infinity;
 
     if (now < startTime) {
       return (
