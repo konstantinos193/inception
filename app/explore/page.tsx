@@ -41,8 +41,16 @@ export default function ExplorePage() {
     return new Date(lastPhase.end).getTime() > Date.now()
   }
 
+  const isUpcomingMint = (collection: any) => {
+    if (!collection.phases || collection.phases.length === 0) return false
+    const nextPhase = collection.phases.find((phase: any) => 
+      new Date(phase.start).getTime() > Date.now()
+    )
+    return !!nextPhase; // Returns true if there is a next phase
+  }
+
   const filteredCollections = collections.filter(collection => 
-    filter === 'upcoming' ? isCollectionLive(collection) : !isCollectionLive(collection)
+    filter === 'upcoming' ? isUpcomingMint(collection) : !isCollectionLive(collection)
   )
 
   if (loading) return <div>Loading...</div>
