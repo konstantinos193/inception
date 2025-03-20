@@ -424,22 +424,13 @@ const MintPage = ({ params }: { params: { id: string } }) => {
       const pricePerNFTInWei = parseEther(activePhase.price.toString());
       const totalValue = pricePerNFTInWei * BigInt(quantity);
 
-      // Debug: Log the payment details
-      console.log('[DEBUG] Payment Details:');
-      console.log('- Price per NFT:', activePhase.price);
-      console.log('- Price per NFT in wei:', pricePerNFTInWei.toString());
-      console.log('- Quantity:', quantity);
-      console.log('- Total value in wei:', totalValue.toString());
-
       // Send the mint transaction with the correct payment amount and gas limit
       const tx = await contract.mint(quantity, pricePerNFTInWei, {
         value: totalValue,
         gasLimit: 300000, // Set a higher gas limit (e.g., 300,000)
       });
 
-      console.log('[DEBUG] Mint transaction sent:', tx);
       await tx.wait();
-      console.log('[DEBUG] Mint transaction confirmed:', tx.hash);
 
       // Refresh the minted count
       await fetchMintedCount();
