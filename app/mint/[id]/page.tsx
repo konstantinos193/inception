@@ -72,6 +72,7 @@ export default function MintPage({ params }: { params: { id: string } }) {
   const [whitelistsNotLoaded, setWhitelistsNotLoaded] = useState(false)
   const [phaseWhitelistStatus, setPhaseWhitelistStatus] = useState<{[key: string]: boolean}>({});
   const [forceUpdate, setForceUpdate] = useState(0);
+  const [tempQuantity, setTempQuantity] = useState('1');
 
   // Define fetchMintedCount here
   const fetchMintedCount = async () => {
@@ -92,16 +93,6 @@ export default function MintPage({ params }: { params: { id: string } }) {
       } finally {
         setIsFetchingMintedCount(false);
       }
-    }
-  };
-
-  const fetchTotalMinted = async () => {
-    try {
-      const response = await fetch(`/api/total-minted?collectionId=${params.id}`);
-      const data = await response.json();
-      setTotalMinted(data.totalMinted);
-    } catch (error) {
-      console.error('Error fetching total minted:', error);
     }
   };
 
@@ -193,13 +184,6 @@ export default function MintPage({ params }: { params: { id: string } }) {
     setWhitelistsNotLoaded(Object.values(newStatus).some(status => status));
     setPhaseWhitelistStatus(newStatus);
   }, [collection?.phases?.phases]);
-
-  // Add to useEffect to fetch periodically
-  useEffect(() => {
-    fetchTotalMinted();
-    const interval = setInterval(fetchTotalMinted, 5000); // Refresh every 10 seconds
-    return () => clearInterval(interval);
-  }, []);
 
   const switchToApeChain = async () => {
     try {
@@ -469,20 +453,6 @@ export default function MintPage({ params }: { params: { id: string } }) {
       });
 
       await tx.wait();
-      
-      // Update total minted
-      const newTotal = totalMinted + quantity;
-      await fetch('/api/total-minted', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          collectionId: params.id, 
-          newTotal 
-        })
-      });
-      
-      setTotalMinted(newTotal);
-      await fetchMintedCount();
     } catch (error) {
       console.error('[DEBUG] Minting error:', error);
       toast.error(error.message || 'Minting failed. Please try again.');
@@ -733,6 +703,27 @@ export default function MintPage({ params }: { params: { id: string } }) {
     }
   }, [collection, currentPhase]);
 
+  const fetchTotalMinted = async () => {
+    try {
+      if (!collection?.contract_address) return;
+      
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const contract = new ethers.Contract(
+        collection.contract_address,
+        MyNFTCollection.abi,
+        provider
+      );
+
+      // Use the contract's totalSupply function
+      const totalMinted = await contract.totalSupply();
+      setTotalMinted(Number(totalMinted));
+      
+      console.log('📊 Total minted from contract:', totalMinted.toString());
+    } catch (error) {
+      console.error('Error fetching total minted:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -862,20 +853,36 @@ export default function MintPage({ params }: { params: { id: string } }) {
               <div className="mt-4">
                 <p className="text-gray-400 mb-2">Amount to mint:</p>
                 <input
-                  type="number"
-                  value={quantity}
+                  type="text"
+                  value={tempQuantity}
                   onChange={(e) => {
-                    const value = parseInt(e.target.value);
-                    if (isNaN(value)) {
-                      setQuantity(1);
-                    } else {
+                    const input = e.target.value;
+                    setTempQuantity(input);
+
+                    const value = parseInt(input);
+                    if (!isNaN(value)) {
                       const maxAllowed = phase?.max_per_wallet || 5;
-                      setQuantity(Math.min(Math.max(1, value), maxAllowed));
+                      if (value >= 1 && value <= maxAllowed) {
+                        setQuantity(value);
+                      }
                     }
                   }}
-                  min="1"
-                  max={phase?.max_per_wallet || 5}
-                  className="bg-gray-900 text-white px-3 py-2 rounded w-20 focus:outline-none focus:ring-1 focus:ring-[#0154fa] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  onBlur={() => {
+                    const value = parseInt(tempQuantity);
+                    const maxAllowed = phase?.max_per_wallet || 5;
+                    
+                    if (isNaN(value) || value < 1) {
+                      setQuantity(1);
+                      setTempQuantity('1');
+                    } else if (value > maxAllowed) {
+                      setQuantity(maxAllowed);
+                      setTempQuantity(maxAllowed.toString());
+                    } else {
+                      setQuantity(value);
+                      setTempQuantity(value.toString());
+                    }
+                  }}
+                  className="bg-gray-900 text-white px-3 py-2 rounded w-20 focus:outline-none focus:ring-1 focus:ring-[#0154fa] text-center"
                 />
 
                 <button
