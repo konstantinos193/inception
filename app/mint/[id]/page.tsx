@@ -857,15 +857,13 @@ export default function MintPage({ params }: { params: { id: string } }) {
                   value={tempQuantity}
                   onChange={(e) => {
                     const input = e.target.value;
-                    setTempQuantity(input);
-
                     const value = parseInt(input);
-                    if (!isNaN(value)) {
-                      const maxAllowed = phase?.max_per_wallet || 5;
-                      const remainingSupply = phase?.supply - totalMinted;
-                      const maxPossible = Math.min(maxAllowed, remainingSupply);
-                      
-                      if (value >= 1 && value <= maxPossible) {
+                    const maxAllowed = phase?.max_per_wallet || 5;
+                    
+                    // Only allow numbers 1-5 (or max_per_wallet)
+                    if (input === '' || (value >= 1 && value <= maxAllowed)) {
+                      setTempQuantity(input);
+                      if (!isNaN(value)) {
                         setQuantity(value);
                       }
                     }
@@ -873,18 +871,13 @@ export default function MintPage({ params }: { params: { id: string } }) {
                   onBlur={() => {
                     const value = parseInt(tempQuantity);
                     const maxAllowed = phase?.max_per_wallet || 5;
-                    const remainingSupply = phase?.supply - totalMinted;
-                    const maxPossible = Math.min(maxAllowed, remainingSupply);
                     
                     if (isNaN(value) || value < 1) {
                       setQuantity(1);
                       setTempQuantity('1');
-                    } else if (value > maxPossible) {
-                      setQuantity(maxPossible);
-                      setTempQuantity(maxPossible.toString());
-                    } else {
-                      setQuantity(value);
-                      setTempQuantity(value.toString());
+                    } else if (value > maxAllowed) {
+                      setQuantity(maxAllowed);
+                      setTempQuantity(maxAllowed.toString());
                     }
                   }}
                   className="bg-gray-900 text-white px-3 py-2 rounded w-20 focus:outline-none focus:ring-1 focus:ring-[#0154fa] text-center"
