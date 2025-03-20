@@ -490,33 +490,44 @@ export default function MintPage({ params }: { params: { id: string } }) {
   };
 
   const isMintingDisabled = () => {
+    // Log wallet connection status
+    console.log('Wallet status:', address ? 'Connected' : 'Not connected');
+    if (!address) {
+      console.log('🔴 Minting disabled: No wallet connected');
+      return true;
+    }
+
+    // Check if collection and phases data is valid
     if (!collection?.phases || !Array.isArray(collection.phases.phases) || currentPhase < 0) {
-        console.log('Minting disabled: Invalid phase data');
-        return true;
+      console.log('🔴 Minting disabled: Invalid phase data');
+      return true;
     }
 
     const phase = collection.phases.phases[currentPhase];
-    console.log('Checking mint disabled for phase:', phase);
+    console.log('Current phase:', phase);
 
-    // Check whitelist first
-    if (phase.is_whitelist) {
-        const whitelistCheck = isWhitelistedForCurrentPhase();
-        console.log('Whitelist check result:', whitelistCheck);
-        if (!whitelistCheck) {
-            console.log('Minting disabled: Not whitelisted');
-            return true;
-        }
-    }
-
-    // Other checks...
+    // Check phase start time
     const now = Date.now();
     const startTime = phase.start ? new Date(phase.start).getTime() : 0;
     if (startTime > now) {
-        console.log('Minting disabled: Phase not started');
-        return true;
+      const timeLeft = startTime - now;
+      console.log(`🔴 Minting disabled: Phase starts in ${formatCountdown(timeLeft)}`);
+      return true;
     }
 
+    // Check whitelist status
+    if (phase.is_whitelist) {
+      const whitelistCheck = isWhitelistedForCurrentPhase();
+      console.log('Whitelist check:', whitelistCheck ? '✅ Eligible' : '🔴 Not eligible');
+      if (!whitelistCheck) {
+        console.log('🔴 Minting disabled: Not whitelisted for this phase');
+        return true;
+      }
+    }
+
+    // Check max per wallet
     if (mintedCountForWallet >= phase.max_per_wallet) {
+      console.log(`🔴 Minting disabled: Max per wallet (${phase.max_per_wallet}) reached`);
         console.log('Minting disabled: Max per wallet reached');
         return true;
     }
@@ -553,13 +564,20 @@ export default function MintPage({ params }: { params: { id: string } }) {
     const now = Date.now();
     const startTime = phase.start ? new Date(phase.start).getTime() : 0;
 
-    // Check start time first, before wallet connection check
+    // Check start time first
     if (startTime > now) {
       const timeLeft = startTime - now;
       return `Minting Starts in: ${formatCountdown(timeLeft)}`;
     }
 
-    if (!address) return "Please Connect Wallet";
+    // Check if whitelists need to be loaded first
+    if (phase.is_whitelist && phase.whitelists === null) {
+      console.log('🔄 Whitelists not yet loaded');
+      return "Whitelists Not Yet Loaded";
+    }
+
+    // Then check wallet connection
+    if (!address) return "Connect Wallet";
     if (isFetchingMintedCount) return "Loading...";
     
     if (totalMinted >= phase.supply) {
@@ -673,13 +691,19 @@ export default function MintPage({ params }: { params: { id: string } }) {
     return <p className="text-gray-400">Phase status unknown</p>;
   }
 
-  const getEligibilityText = (phase: any, walletAddress: string | null) => {
-    if (!walletAddress) return "Connect Wallet"
-    if (!phase.is_whitelist) return "Public"
+  const getEligibilityText = (phase: any) => {
+    // First check if whitelists need to be loaded
+    if (phase.is_whitelist && phase.whitelists === null) {
+      return "Whitelists Not Yet Loaded";
+    }
 
-    // If whitelists is null, it means they haven't been loaded into Supabase yet
-    if (phase.whitelists === null) {
-      return "Whitelists Not Yet Loaded"; // Changed message
+    // Then check wallet connection
+    if (!address) {
+      return "Connect Wallet";
+    }
+
+    if (!phase.is_whitelist) {
+      return "Public";
     }
 
     // If whitelists array is empty (but not null), then we're still loading
@@ -689,10 +713,10 @@ export default function MintPage({ params }: { params: { id: string } }) {
 
     const isEligible = phase.whitelists
       .map((addr: string) => addr.toLowerCase())
-      .includes(walletAddress.toLowerCase())
+      .includes(address.toLowerCase());
 
-    return isEligible ? "Eligible" : "Not Eligible"
-  }
+    return isEligible ? "Eligible" : "Not Eligible";
+  };
 
   useEffect(() => {
     if (!collection?.phases?.phases?.[currentPhase]) return;
@@ -812,41 +836,56 @@ export default function MintPage({ params }: { params: { id: string } }) {
             </div>
             <p className="mb-6">{collection.description}</p>
             <div className="bg-gray-800 p-6 rounded-lg mb-6">
-              <h2 className="text-xl md:text-2xl font-semibold mb-4">Mint Details</h2>
+              <h2 className="text-2xl font-bold mb-4">Mint Details</h2>
               
-              <p className="text-[#0154fa] text-xl mb-2">{totalMinted} / {getTotalSupply()} NFTs Minted</p>
+              <p className="text-[#0154fa] text-xl mb-4">{totalMinted} / {getTotalSupply()} NFTs Minted</p>
               
               {progressBar}
 
-              <div className="mb-4">
-                <p className="text-lg">Current Phase: {phase?.name || 'Public'}</p>
-                <p className="text-[#0154fa] text-xl mt-1">{phase?.price || 12} APE</p>
+              <div className="bg-gray-900 rounded-lg p-4 mt-4 mb-4">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-gray-400">Current Phase</span>
+                  <span>{phase?.name || 'Public'}</span>
+                </div>
+                
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-gray-400">Price</span>
+                  <span className="text-[#0154fa]">{phase?.price || 12} APE</span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Max Per Wallet</span>
+                  <span>{phase?.max_per_wallet || 5}</span>
+                </div>
               </div>
 
-              <p className="text-gray-400 mb-2">Amount to mint:</p>
-              <div className="flex items-center gap-4 mb-6">
+              <div className="mt-4">
+                <p className="text-gray-400 mb-2">Amount to mint:</p>
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value);
+                    if (isNaN(value)) {
+                      setQuantity(1);
+                    } else {
+                      const maxAllowed = phase?.max_per_wallet || 5;
+                      setQuantity(Math.min(Math.max(1, value), maxAllowed));
+                    }
+                  }}
+                  min="1"
+                  max={phase?.max_per_wallet || 5}
+                  className="bg-gray-900 text-white px-3 py-2 rounded w-20 focus:outline-none focus:ring-1 focus:ring-[#0154fa] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+
                 <button
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded"
+                  onClick={handleMint}
+                  disabled={isButtonDisabled || isMinting || isFetchingMintedCount}
+                  className="w-full bg-[#0154fa] text-white py-3 rounded font-semibold text-lg disabled:opacity-50"
                 >
-                  -
-                </button>
-                <span className="text-xl">{quantity}</span>
-                <button
-                  onClick={() => setQuantity(Math.min(collection?.max_per_wallet || 5, quantity + 1))}
-                  className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded"
-                >
-                  +
+                  {getMintButtonText()}
                 </button>
               </div>
-
-              <button
-                onClick={handleMint}
-                disabled={isButtonDisabled || isMinting || isFetchingMintedCount}
-                className="w-full bg-[#0154fa] text-white py-3 rounded font-semibold text-lg disabled:opacity-50"
-              >
-                {getMintButtonText()}
-              </button>
             </div>
           </div>
         </div>
@@ -871,17 +910,15 @@ export default function MintPage({ params }: { params: { id: string } }) {
                   </h3>
                   {!phase.name.toLowerCase().includes('public') && phase.is_whitelist && (
                     <span className={`px-2 py-1 rounded text-sm ${
-                      getEligibilityText(phase, address) === "Eligible"
+                      getEligibilityText(phase) === "Whitelists Not Yet Loaded"
+                        ? "bg-gray-600 text-white"
+                        : getEligibilityText(phase) === "Connect Wallet"
+                        ? "bg-[#f4c721] text-white"
+                        : getEligibilityText(phase) === "Eligible"
                         ? "bg-green-500 text-white"
-                        : getEligibilityText(phase, address) === "Connect Wallet"
-                        ? "bg-yellow-500 text-white"
-                        : getEligibilityText(phase, address) === "Loading Whitelist..."
-                        ? "bg-yellow-500 text-white"
-                        : getEligibilityText(phase, address) === "Whitelists Not Yet Loaded"
-                        ? "bg-gray-500 text-white"
                         : "bg-red-500 text-white"
                     }`}>
-                      {getEligibilityText(phase, address)}
+                      {getEligibilityText(phase)}
                     </span>
                   )}
                 </div>
