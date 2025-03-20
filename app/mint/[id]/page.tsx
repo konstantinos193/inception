@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { BrowserProvider, Contract, parseEther, isAddress, arrayify } from 'ethers'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -56,7 +56,7 @@ const solidityKeccak256 = (types: string[], values: any[]) => {
   return '0x' + keccak256(Buffer.from(packed, 'hex'));
 };
 
-const MintPage = ({ params }: { params: { id: string } }) => {
+export default function MintPage({ params }: { params: { id: string } }) {
   const [collection, setCollection] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [quantity, setQuantity] = useState(1)
@@ -71,6 +71,7 @@ const MintPage = ({ params }: { params: { id: string } }) => {
   const [isFetchingMintedCount, setIsFetchingMintedCount] = useState(false)
   const [whitelistsNotLoaded, setWhitelistsNotLoaded] = useState(false)
   const [phaseWhitelistStatus, setPhaseWhitelistStatus] = useState<{[key: string]: boolean}>({});
+  const [forceUpdate, setForceUpdate] = useState(0);
 
   // Define fetchMintedCount here
   const fetchMintedCount = async () => {
@@ -91,6 +92,16 @@ const MintPage = ({ params }: { params: { id: string } }) => {
       } finally {
         setIsFetchingMintedCount(false);
       }
+    }
+  };
+
+  const fetchTotalMinted = async () => {
+    try {
+      const response = await fetch(`/api/total-minted?collectionId=${params.id}`);
+      const data = await response.json();
+      setTotalMinted(data.totalMinted);
+    } catch (error) {
+      console.error('Error fetching total minted:', error);
     }
   };
 
@@ -182,6 +193,13 @@ const MintPage = ({ params }: { params: { id: string } }) => {
     setWhitelistsNotLoaded(Object.values(newStatus).some(status => status));
     setPhaseWhitelistStatus(newStatus);
   }, [collection?.phases?.phases]);
+
+  // Add to useEffect to fetch periodically
+  useEffect(() => {
+    fetchTotalMinted();
+    const interval = setInterval(fetchTotalMinted, 5000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   const switchToApeChain = async () => {
     try {
@@ -349,10 +367,10 @@ const MintPage = ({ params }: { params: { id: string } }) => {
     }
   };
 
-  const getCurrentPhaseMaxSupply = () => {
-    if (!collection?.phases?.phases?.[currentPhase]) return 0;
-    return collection.phases.phases[currentPhase].supply;
-  }
+  const getTotalSupply = useCallback(() => {
+    if (!collection?.phases?.phases) return 0;
+    return collection.phases.phases.reduce((total, phase) => total + phase.supply, 0);
+  }, [collection]);
 
   const getProgressPercentage = () => {
     if (!collection?.phases?.phases?.[currentPhase]) return 0;
@@ -361,20 +379,27 @@ const MintPage = ({ params }: { params: { id: string } }) => {
   }
 
   const isWhitelistedForCurrentPhase = () => {
-    if (!address || !collection?.phases?.phases?.[currentPhase]) return false;
-    const phase = collection.phases.phases[currentPhase];
-
-    if (!phase.is_whitelist) return true; // Public phase, no whitelist check
-
-    // Check if whitelists are loaded
-    if (!phase.whitelists || phase.whitelists.length === 0) {
-      return false; // Not whitelisted since we don't have the list
+    if (!address || !collection?.phases?.phases?.[currentPhase]) {
+        console.log('Whitelist check failed: No address or phase data');
+        return false;
     }
 
-    return phase.whitelists
-      .map((addr: string) => addr.toLowerCase())
-      .includes(address.toLowerCase());
-  }
+    const phase = collection.phases.phases[currentPhase];
+    console.log('Current phase:', phase);
+    console.log('Is whitelist phase?', phase.is_whitelist);
+    console.log('Whitelist addresses:', phase.whitelists);
+    console.log('User address:', address.toLowerCase());
+    
+    if (!phase.whitelists || !Array.isArray(phase.whitelists)) {
+        console.log('No whitelist array found');
+        return false;
+    }
+
+    const isWhitelisted = phase.whitelists.includes(address.toLowerCase());
+    console.log('Is user whitelisted?', isWhitelisted);
+    
+    return isWhitelisted;
+  };
 
   const handleMint = async () => {
     try {
@@ -444,8 +469,19 @@ const MintPage = ({ params }: { params: { id: string } }) => {
       });
 
       await tx.wait();
-
-      // Refresh the minted count
+      
+      // Update total minted
+      const newTotal = totalMinted + quantity;
+      await fetch('/api/total-minted', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          collectionId: params.id, 
+          newTotal 
+        })
+      });
+      
+      setTotalMinted(newTotal);
       await fetchMintedCount();
     } catch (error) {
       console.error('[DEBUG] Minting error:', error);
@@ -454,52 +490,92 @@ const MintPage = ({ params }: { params: { id: string } }) => {
   };
 
   const isMintingDisabled = () => {
-    // Ensure currentPhase is within bounds
-    if (!collection?.phases || !Array.isArray(collection.phases.phases) || currentPhase < 0 || currentPhase >= collection.phases.phases.length) {
-        console.warn('Invalid currentPhase:', currentPhase);
-        return true; // Disable minting if currentPhase is invalid
-    }
-
-    const phase = collection.phases.phases[currentPhase];
-
-    // Check if the phase has started
-    const now = Date.now();
-    const startTime = phase.start ? new Date(phase.start).getTime() : 0; // Allow null start time
-    if (startTime > now) return true; // Phase not started
-
-    // Check if the wallet has minted the maximum allowed
-    if (mintedCountForWallet >= phase.max_per_wallet) {
-        console.log('Minting disabled: Max per wallet minted');
+    if (!collection?.phases || !Array.isArray(collection.phases.phases) || currentPhase < 0) {
+        console.log('Minting disabled: Invalid phase data');
         return true;
     }
 
-    // Check if the total supply has been reached
-    if (totalMinted >= phase.supply) return true; // This will trigger the "Sold Out" state
+    const phase = collection.phases.phases[currentPhase];
+    console.log('Checking mint disabled for phase:', phase);
 
-    // Check if the user is whitelisted for a whitelist phase
-    if (phase.is_whitelist && !isWhitelistedForCurrentPhase()) return true; // Not whitelisted
+    // Check whitelist first
+    if (phase.is_whitelist) {
+        const whitelistCheck = isWhitelistedForCurrentPhase();
+        console.log('Whitelist check result:', whitelistCheck);
+        if (!whitelistCheck) {
+            console.log('Minting disabled: Not whitelisted');
+            return true;
+        }
+    }
+
+    // Other checks...
+    const now = Date.now();
+    const startTime = phase.start ? new Date(phase.start).getTime() : 0;
+    if (startTime > now) {
+        console.log('Minting disabled: Phase not started');
+        return true;
+    }
+
+    if (mintedCountForWallet >= phase.max_per_wallet) {
+        console.log('Minting disabled: Max per wallet reached');
+        return true;
+    }
+
+    if (totalMinted >= phase.supply) {
+        console.log('Minting disabled: Supply reached');
+        return true;
+    }
 
     return false;
   };
 
-  const getMintButtonText = () => {
-    if (!address) return "Please Connect Wallet";
-    if (isFetchingMintedCount) return "Loading...";
-    if (!collection?.phases?.phases?.[currentPhase]) return "Loading...";
-    const phase = collection.phases.phases[currentPhase];
+  const formatCountdown = (timeLeft: number) => {
+    const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((timeLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+  };
 
-    // Check if the total supply has been reached
-    if (totalMinted >= phase.supply) {
-      return "Sold Out"; // Indicate that the phase is sold out
+  const progressBar = useMemo(() => (
+    <div className="w-full bg-gray-700 rounded-full h-4 mt-4">
+      <div
+        className="bg-[#0154fa] h-4 rounded-full"
+        style={{ width: `${(totalMinted / getTotalSupply()) * 100}%` }}
+      />
+    </div>
+  ), [totalMinted, getTotalSupply]);
+
+  const getMintButtonText = () => {
+    if (!collection?.phases?.phases?.[currentPhase]) return "Loading...";
+    
+    const phase = collection.phases.phases[currentPhase];
+    const now = Date.now();
+    const startTime = phase.start ? new Date(phase.start).getTime() : 0;
+
+    // Check start time first, before wallet connection check
+    if (startTime > now) {
+      const timeLeft = startTime - now;
+      return `Minting Starts in: ${formatCountdown(timeLeft)}`;
     }
 
-    if (mintedCountForWallet >= collection.max_per_wallet) {
+    if (!address) return "Please Connect Wallet";
+    if (isFetchingMintedCount) return "Loading...";
+    
+    if (totalMinted >= phase.supply) {
+      return "Sold Out";
+    }
+
+    if (mintedCountForWallet >= phase.max_per_wallet) {
       return "Max Per Wallet Minted";
     }
 
     if (isMinting) return "Minting...";
-    if (phase.isWhitelist && !isWhitelistedForCurrentPhase()) return "Not Whitelisted for this Phase";
-    if (new Date(phase.start).getTime() > Date.now()) return "Minting Not Yet Started";
+    
+    if (phase.is_whitelist && !isWhitelistedForCurrentPhase()) {
+      return "Not Whitelisted for this Phase";
+    }
+    
     return `Mint ${quantity} NFT${quantity > 1 ? "s" : ""}`;
   };
 
@@ -618,6 +694,21 @@ const MintPage = ({ params }: { params: { id: string } }) => {
     return isEligible ? "Eligible" : "Not Eligible"
   }
 
+  useEffect(() => {
+    if (!collection?.phases?.phases?.[currentPhase]) return;
+    
+    const phase = collection.phases.phases[currentPhase];
+    const startTime = phase.start ? new Date(phase.start).getTime() : 0;
+    const now = Date.now();
+
+    if (startTime > now) {
+      const timer = setInterval(() => {
+        setForceUpdate(prev => prev + 1); // Add this state to force re-render
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [collection, currentPhase]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -722,113 +813,41 @@ const MintPage = ({ params }: { params: { id: string } }) => {
             <p className="mb-6">{collection.description}</p>
             <div className="bg-gray-800 p-6 rounded-lg mb-6">
               <h2 className="text-xl md:text-2xl font-semibold mb-4">Mint Details</h2>
-              <p>Total Supply: {collection.total_supply}</p>
-              <p>Max Per Wallet: {collection.phases.phases[currentPhase]?.max_per_wallet}</p>
-            </div>
-            {isUpcomingPhase ? (
-              <div className="text-center">
-                <h2 className="text-2xl font-bold">Upcoming Phase</h2>
-                <Countdown
-                  date={new Date(phase.start)}
-                  renderer={({ days, hours, minutes, seconds }) => (
-                    <p className="text-gray-400">
-                      The first phase starts in: {days}d {hours}h {minutes}m {seconds}s
-                    </p>
-                  )}
-                />
+              
+              <p className="text-[#0154fa] text-xl mb-2">{totalMinted} / {getTotalSupply()} NFTs Minted</p>
+              
+              {progressBar}
+
+              <div className="mb-4">
+                <p className="text-lg">Current Phase: {phase?.name || 'Public'}</p>
+                <p className="text-[#0154fa] text-xl mt-1">{phase?.price || 12} APE</p>
               </div>
-            ) : (
-              <>
-                {phase && (
-                  <div className="mb-6">
-                    <h3 className="text-lg md:text-xl font-semibold mb-2">
-                      Current Phase: {phase.name}
-                      {isPhaseActive(phase) && (
-                        <span className="ml-2 text-sm bg-[#0154fa] text-white px-2 py-1 rounded">
-                          Active
-                        </span>
-                      )}
-                    </h3>
-                    <p className="text-xl md:text-2xl font-semibold text-[#0154fa] mb-6">
-                      {phase.price === 0 ? "FREE" : `${phase.price} APE`}
-                    </p>
-                    <div className="w-full bg-gray-700 rounded-full h-2.5 mb-4">
-                      <div
-                        className="bg-[#0154fa] h-2.5 rounded-full"
-                        style={{ width: `${getProgressPercentage()}%` }}
-                      />
-                    </div>
-                    <p>
-                      {totalMinted} / {getCurrentPhaseMaxSupply()} minted
-                    </p>
-                  </div>
-                )}
-                <AnimatePresence>
-                  {phase && new Date(phase.start).getTime() > Date.now() && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
-                      className="mb-6"
-                    >
-                      <h3 className="text-lg md:text-xl font-semibold mb-2">Phase Starts In:</h3>
-                      <Countdown
-                        date={new Date(phase.start)}
-                        renderer={({ days, hours, minutes, seconds }) => (
-                          <span className="text-2xl font-bold">
-                            {days}d {hours}h {minutes}m {seconds}s
-                          </span>
-                        )}
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <div className="flex items-center space-x-4 mb-6">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="bg-gray-700 text-gray-200 px-3 py-2 rounded-md hover:bg-gray-600 transition-colors"
-                  >
-                    -
-                  </button>
-                  <span className="text-2xl font-semibold">{quantity}</span>
-                  <button
-                    onClick={() => setQuantity(Math.min(collection.max_per_wallet, quantity + 1))}
-                    className="bg-gray-700 text-gray-200 px-3 py-2 rounded-md hover:bg-gray-600 transition-colors"
-                  >
-                    +
-                  </button>
-                </div>
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="w-full bg-[#0154fa] text-white py-3 rounded-md text-xl font-semibold hover:bg-[#0143d1] transition-colors shadow-lg hover:shadow-[#0154fa]/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={isButtonDisabled || isMinting || isFetchingMintedCount || totalMinted >= phase.supply}
-                  onClick={handleMint}
+
+              <p className="text-gray-400 mb-2">Amount to mint:</p>
+              <div className="flex items-center gap-4 mb-6">
+                <button
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded"
                 >
-                  {getMintButtonText()}
-                </motion.button>
-                {isMinting && (
-                  <p className="mt-2 text-sm text-gray-400">
-                    Transaction pending...
-                  </p>
-                )}
-                {isMinted && (
-                  <p className="mt-2 text-sm text-green-400">
-                    Successfully minted!
-                  </p>
-                )}
-                {collection?.phases?.phases?.[currentPhase]?.isWhitelist && (
-                  <p className="mt-2 text-sm text-gray-400">
-                    {isWhitelistedForCurrentPhase()
-                      ? "✅ You are whitelisted for this phase"
-                      : "❌ You are not whitelisted for this phase"}
-                  </p>
-                )}
-                {whitelistsNotLoaded && (
-                  <p className="text-red-500">Whitelists not yet loaded for this phase.</p>
-                )}
-              </>
-            )}
+                  -
+                </button>
+                <span className="text-xl">{quantity}</span>
+                <button
+                  onClick={() => setQuantity(Math.min(collection?.max_per_wallet || 5, quantity + 1))}
+                  className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded"
+                >
+                  +
+                </button>
+              </div>
+
+              <button
+                onClick={handleMint}
+                disabled={isButtonDisabled || isMinting || isFetchingMintedCount}
+                className="w-full bg-[#0154fa] text-white py-3 rounded font-semibold text-lg disabled:opacity-50"
+              >
+                {getMintButtonText()}
+              </button>
+            </div>
           </div>
         </div>
         <div className="mt-12">
@@ -870,6 +889,7 @@ const MintPage = ({ params }: { params: { id: string } }) => {
                 <p className="text-gray-400">
                   {phase.is_whitelist ? "Whitelist Only" : "Public Sale"}
                 </p>
+                <p className="text-gray-400 mt-2">Supply: {phase.supply}</p>
                 <div className="mt-4">
                   {renderCountdown(phase)}
                 </div>
@@ -879,6 +899,5 @@ const MintPage = ({ params }: { params: { id: string } }) => {
         </div>
       </div>
     </div>
-  )
+  );
 }
-export default MintPage
