@@ -69,6 +69,7 @@ const MintPage = ({ params }: { params: { id: string } }) => {
   const [isButtonDisabled, setIsButtonDisabled] = useState(true)
   const [mintedCountForWallet, setMintedCountForWallet] = useState(0)
   const [isFetchingMintedCount, setIsFetchingMintedCount] = useState(false)
+  const [whitelistsNotLoaded, setWhitelistsNotLoaded] = useState(false)
 
   // Define fetchMintedCount here
   const fetchMintedCount = async () => {
@@ -132,13 +133,27 @@ const MintPage = ({ params }: { params: { id: string } }) => {
         return now >= startTime && now < endTime;
       });
 
-        if (activePhaseIndex !== -1) {
+      // Check if there are multiple phases
+      if (collection.phases.phases.length > 1) {
+        // Check if the address is found in any phase except the last one
+        const isAddressFoundInAnyPhase = collection.phases.phases.slice(0, -1).some(phase => {
+          return phase.whitelists?.map((addr: string) => addr.toLowerCase()).includes(address?.toLowerCase());
+        });
+
+        // If the address is not found in any phase except the last one
+        if (!isAddressFoundInAnyPhase) {
+          setWhitelistsNotLoaded(true);
+        } else {
+          setWhitelistsNotLoaded(false);
+        }
+      }
+
+      if (activePhaseIndex !== -1) {
         setCurrentPhase(activePhaseIndex);
-            // Update the price for the new active phase
-            setPricePerNFT(collection.phases.phases[activePhaseIndex].price);
+        setPricePerNFT(collection.phases.phases[activePhaseIndex].price);
       }
     }
-  }, [collection]);
+  }, [collection, address]);
 
   useEffect(() => {
     // Block the script from running
@@ -218,6 +233,13 @@ const MintPage = ({ params }: { params: { id: string } }) => {
 
       // Ensure wallet is connected
       const provider = await ensureWalletConnected();
+
+      // Set max supply for each phase
+      if (data.phases?.phases) {
+        data.phases.phases.forEach((phase: any) => {
+          phase.supply = phase.supply || 0; // Set default supply if not defined
+        });
+      }
 
       // If there's a contract address, fetch total supply
       if (data.contract_address) {
@@ -359,6 +381,11 @@ const MintPage = ({ params }: { params: { id: string } }) => {
         if (!address) {
           throw new Error('Please connect your wallet to proceed.');
         }
+      }
+
+      // Check if the current phase's supply has been reached
+      if (totalMinted >= getCurrentPhaseMaxSupply()) {
+        throw new Error('Current phase supply reached. Cannot mint more NFTs.');
       }
 
       // Initialize the provider and contract
@@ -712,6 +739,9 @@ const MintPage = ({ params }: { params: { id: string } }) => {
                   ? "✅ You are whitelisted for this phase"
                   : "❌ You are not whitelisted for this phase"}
               </p>
+            )}
+            {whitelistsNotLoaded && (
+              <p className="text-red-500">Whitelists not yet loaded for this phase.</p>
             )}
           </div>
         </div>

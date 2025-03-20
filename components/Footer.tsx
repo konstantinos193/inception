@@ -38,7 +38,7 @@ export default function Footer() {
               <a href="https://x.com/Inceptionlaunch" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
                 <FontAwesomeIcon icon={faXTwitter} className="h-5 w-5" />
               </a>
-              <a href="https://discord.gg/apeeliteclub" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
+              <a href="https://discord.gg/WVXzaXwcXr" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
                 <FontAwesomeIcon icon={faDiscord} className="h-5 w-5" />
               </a>
             </div>
@@ -58,7 +58,7 @@ export default function Footer() {
               <a href="https://x.com/Inceptionlaunch" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
                 <FontAwesomeIcon icon={faXTwitter} className="h-5 w-5" />
               </a>
-              <a href="https://discord.gg/apeeliteclub" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
+              <a href="https://discord.gg/WVXzaXwcXr" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#0154fa]">
                 <FontAwesomeIcon icon={faDiscord} className="h-5 w-5" />
               </a>
             </div>

@@ -13,14 +13,15 @@ export default function UpcomingDropsGrid() {
     const fetchUpcomingDrops = async () => {
       try {
         const { data, error } = await supabase
-          .from('upcoming_drops') // Replace with your actual table name
-          .select('*')
-          .order('launchDate', { ascending: true }); // Order by launch date
+          .from('upcoming_drops')
+          .select('*') // Ensure artistImage is included
+          .order('launchDate', { ascending: true });
 
         if (error) {
           throw new Error(error.message);
         }
 
+        console.log("Fetched upcoming drops:", data); // Log the data
         setUpcomingDrops(data);
       } catch (error) {
         console.error('Error fetching upcoming drops:', error);
@@ -59,7 +60,22 @@ export default function UpcomingDropsGrid() {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
                     <h3 className="text-xl font-semibold text-white">{drop.name}</h3>
-                    <p className="text-gray-300">by {drop.artist}</p>
+                    <div className="flex items-center mt-2">
+                      {drop.artistImage ? (
+                        <img
+                          src={drop.artistImage}
+                          alt={drop.artist}
+                          className="w-8 h-8 rounded-full mr-2"
+                        />
+                      ) : (
+                        <img
+                          src="/placeholder.svg"
+                          alt="Placeholder"
+                          className="w-8 h-8 rounded-full mr-2"
+                        />
+                      )}
+                      <p className="text-gray-300">by {drop.artist}</p>
+                    </div>
                     <p className="text-[#0154fa] font-semibold mt-2">
                       {Number(drop.price) === 0 ? "Free" : `${drop.price} APE`}
                     </p>
@@ -67,7 +83,22 @@ export default function UpcomingDropsGrid() {
                 </div>
                 <div className="mt-4 space-y-2">
                   <h3 className="text-xl font-semibold text-white">{drop.name}</h3>
-                  <p className="text-gray-400">by {drop.artist}</p>
+                  <div className="flex items-center">
+                    {drop.artistImage ? (
+                      <img
+                        src={drop.artistImage}
+                        alt={drop.artist}
+                        className="w-8 h-8 rounded-full mr-2"
+                      />
+                    ) : (
+                      <img
+                        src="/placeholder.svg"
+                        alt="Placeholder"
+                        className="w-8 h-8 rounded-full mr-2"
+                      />
+                    )}
+                    <p className="text-gray-400">by {drop.artist}</p>
+                  </div>
                   <p className="text-[#0154fa] font-semibold">
                     {Number(drop.price) === 0 ? "Free" : `${drop.price} APE`}
                   </p>
