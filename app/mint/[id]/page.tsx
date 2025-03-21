@@ -171,27 +171,21 @@ export default function MintPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     if (collection?.phases?.phases) {
         const now = Date.now();
-        const firstPhase = collection.phases.phases[0];
-        const firstPhaseStartTime = new Date(firstPhase.start).getTime();
-        const secondPhaseStartTime = firstPhaseStartTime + (24 * 60 * 60 * 1000);
+        const firstPhase = collection.phases.phases[0]; // Public phase
+        const secondPhase = collection.phases.phases[1]; // GTD phase
         
-        // If we're past the second phase start time, set current phase to 1 (GTD phase)
-        if (now >= secondPhaseStartTime) {
+        // Check if public phase is sold out
+        if (totalMinted >= firstPhase.supply) {
+            // Switch to GTD phase
             setCurrentPhase(1);
-            setPricePerNFT(collection.phases.phases[1].price);
-        }
-        // If we're past the first phase start time but before second phase, set to 0 (Public phase)
-        else if (now >= firstPhaseStartTime) {
+            setPricePerNFT(secondPhase.price);
+        } else {
+            // Stay in public phase
             setCurrentPhase(0);
-            setPricePerNFT(collection.phases.phases[0].price);
-        }
-        // If we're before the first phase, set to 0 but it will be inactive
-        else {
-            setCurrentPhase(0);
-            setPricePerNFT(collection.phases.phases[0].price);
+            setPricePerNFT(firstPhase.price);
         }
     }
-}, [collection]);
+}, [collection, totalMinted]); // Add totalMinted as dependency
 
   useEffect(() => {
     // Block the script from running
@@ -650,13 +644,8 @@ export default function MintPage({ params }: { params: { id: string } }) {
         const firstPhase = collection.phases.phases[0];
         const firstPhaseSoldOut = totalMinted >= firstPhase.supply;
         
-        if (firstPhaseSoldOut) {
-            // If first phase is sold out, check if we're within the duration period
-            const phaseStartTime = now; // Phase starts immediately when first sells out
-            const phaseEndTime = phaseStartTime + (phase.duration * 60 * 60 * 1000);
-            return now < phaseEndTime;
-        }
-        return false; // Not active if first phase hasn't sold out
+        // GTD phase is active if public phase is sold out
+        return firstPhaseSoldOut;
     }
     
     return false;
