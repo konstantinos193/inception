@@ -468,63 +468,58 @@ export default function MintPage({ params }: { params: { id: string } }) {
 
   const handleMint = async () => {
     try {
-      // Ensure the wallet is connected
-      if (!address) {
-        await connectWallet();
+        // Ensure the wallet is connected
         if (!address) {
-          throw new Error('Please connect your wallet to proceed.');
+            await connectWallet();
+            if (!address) {
+                throw new Error('Please connect your wallet to proceed.');
+            }
         }
-      }
 
-      // Initialize the provider and contract
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const contract = new ethers.Contract(
-        collection.contract_address,
-        MyNFTCollection.abi,
-        signer
-      );
+        // Initialize the provider and contract
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const contract = new ethers.Contract(
+            collection.contract_address,
+            MyNFTCollection.abi,
+            signer
+        );
 
-      // Get the max supply from contract
-      const maxSupply = await contract.maxSupply();
-      const totalSupply = await contract.totalSupply();
+        // Get the current phase
+        const phase = collection.phases.phases[currentPhase];
+        if (!phase) {
+            throw new Error('Invalid phase');
+        }
 
-      // Check if the total supply has been reached
-      if (totalSupply >= maxSupply) {
-        throw new Error('Maximum supply reached. Cannot mint more NFTs.');
-      }
+        // Convert price to Wei, handling free mints
+        const priceInWei = phase.price === 0 ? 
+            BigInt(0) : 
+            parseEther(phase.price.toString());
+        
+        const totalValue = priceInWei * BigInt(quantity);
 
-      // Get the current phase's price
-      const now = Date.now();
-      const activePhase = collection.phases.phases.find(phase => {
-        const startTime = new Date(phase.start).getTime();
-        const endTime = phase.end ? new Date(phase.end).getTime() : Infinity;
-        return now >= startTime && now < endTime;
-      });
+        console.log('Minting with params:', {
+            quantity,
+            priceInWei: priceInWei.toString(),
+            totalValue: totalValue.toString()
+        });
 
-      if (!activePhase) {
-        throw new Error('No active phase found');
-      }
+        // Send the mint transaction
+        const tx = await contract.mint(quantity, priceInWei, {
+            value: totalValue,
+            gasLimit: 300000,
+        });
 
-      const pricePerNFTInWei = parseEther(activePhase.price.toString());
-      const totalValue = pricePerNFTInWei * BigInt(quantity);
-
-      // Send the mint transaction
-      const tx = await contract.mint(quantity, pricePerNFTInWei, {
-        value: totalValue,
-        gasLimit: 300000,
-      });
-
-      await tx.wait();
-      await fetchTradingStatus();
-      await fetchTotalMinted();
-      await fetchMintedCount();
-      
-      toast.success('Successfully minted!');
+        await tx.wait();
+        await fetchTradingStatus();
+        await fetchTotalMinted();
+        await fetchMintedCount();
+        
+        toast.success('Successfully minted!');
 
     } catch (error) {
-      console.error('[DEBUG] Minting error:', error);
-      toast.error(error.message || 'Minting failed. Please try again.');
+        console.error('[DEBUG] Minting error:', error);
+        toast.error(error.message || 'Minting failed. Please try again.');
     }
   };
 
