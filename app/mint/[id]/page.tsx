@@ -484,43 +484,25 @@ export default function MintPage({ params }: { params: { id: string } }) {
         }
       }
 
-      // Check if the current phase's supply has been reached
-      if (totalMinted >= getCurrentPhaseMaxSupply()) {
-        const currentPhaseData = collection.phases.phases[currentPhase];
-        
-        // Check if the current phase is a never-ending phase
-        if (currentPhaseData.end === null) {
-          // If it's a never-ending phase, you can choose to keep it active
-          // or display a message that the supply is exhausted
-          toast.error('The supply for this phase has been minted.');
-          return; // Prevent further minting
-        } else {
-          // Automatically switch to the next phase if available
-          if (currentPhase < collection.phases.phases.length - 1) {
-            setCurrentPhase(currentPhase + 1);
-            toast.success('Phase ended, moving to the next phase.');
-          } else {
-            throw new Error('Current phase supply reached. Cannot mint more NFTs.');
-          }
-        }
-      }
-
-      // Check if the wallet has already minted the maximum allowed for this phase
-      const maxPerWallet = collection.phases.phases[currentPhase].max_per_wallet;
-      if (mintedCountForWallet >= maxPerWallet) {
-        throw new Error('You have already minted the maximum allowed NFTs for this phase.');
-      }
-
       // Initialize the provider and contract
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(
-        collection.contract_address, // Contract address
-        MyNFTCollection.abi, // ABI
-        signer // Signer
+        collection.contract_address,
+        MyNFTCollection.abi,
+        signer
       );
 
-      // Get the current phase's price directly
+      // Get the max supply from contract
+      const maxSupply = await contract.maxSupply();
+      const totalSupply = await contract.totalSupply();
+
+      // Check if the total supply has been reached
+      if (totalSupply >= maxSupply) {
+        throw new Error('Maximum supply reached. Cannot mint more NFTs.');
+      }
+
+      // Get the current phase's price
       const now = Date.now();
       const activePhase = collection.phases.phases.find(phase => {
         const startTime = new Date(phase.start).getTime();
@@ -535,14 +517,19 @@ export default function MintPage({ params }: { params: { id: string } }) {
       const pricePerNFTInWei = parseEther(activePhase.price.toString());
       const totalValue = pricePerNFTInWei * BigInt(quantity);
 
-      // Send the mint transaction with the correct payment amount and gas limit
+      // Send the mint transaction
       const tx = await contract.mint(quantity, pricePerNFTInWei, {
         value: totalValue,
-        gasLimit: 300000, // Set a higher gas limit (e.g., 300,000)
+        gasLimit: 300000,
       });
 
       await tx.wait();
       await fetchTradingStatus();
+      
+      // Refresh total supply after successful mint
+      const newTotalSupply = await contract.totalSupply();
+      setTotalMinted(Number(newTotalSupply));
+
     } catch (error) {
       console.error('[DEBUG] Minting error:', error);
       toast.error(error.message || 'Minting failed. Please try again.');
