@@ -31,70 +31,77 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen relative">
-      {/* Loading Overlay */}
-      {isLoading && (
-        <div className="fixed inset-0 z-50 backdrop-blur-lg flex items-center justify-center">
-          <div className="flex flex-col items-center space-y-4">
-            <div className="w-12 h-12 border-4 border-[#0154fa] border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-gray-400 text-lg">Loading dreams...</p>
+    <>
+      {/* Add viewport meta tag for proper mobile rendering */}
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      </head>
+      
+      <div className="flex flex-col min-h-screen relative">
+        {/* Loading Overlay */}
+        {isLoading && (
+          <div className="fixed inset-0 z-50 backdrop-blur-lg flex items-center justify-center">
+            <div className="flex flex-col items-center space-y-4">
+              <div className="w-12 h-12 border-4 border-[#0154fa] border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-gray-400 text-lg">Loading dreams...</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Header */}
-      <Header />
+        {/* Header */}
+        <Header />
 
-      {/* DreamLayers */}
-      <DreamLayers className="pointer-events-none" />
+        {/* DreamLayers */}
+        <DreamLayers className="pointer-events-none" />
 
-      {/* Main Content */}
-      <main className="flex-grow pt-24 z-10" ref={containerRef}>
-        {/* Hero Section */}
-        <motion.section
-          style={{ opacity, scale, rotateX }}
-          className="mb-32 perspective-1000"
-        >
-          <h1 className="text-4xl md:text-7xl font-extrabold text-center mb-8 text-transparent bg-clip-text bg-gradient-to-r from-[#0154fa] to-[#00ffff]">
-            Build Your Dreams
-          </h1>
-          <p className="text-lg md:text-xl text-center text-gray-400 max-w-2xl mx-auto">
-            Explore layers of imagination
-          </p>
-        </motion.section>
-
-        {/* Featured Drops Carousel */}
-        <FeaturedDropsCarousel />
-
-        {/* Upcoming Drops Grid */}
-        <UpcomingDropsGrid />
-
-        {/* Call-to-Action Section */}
-        <section className="py-16 px-4">
-          <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-8 text-[#0154fa]">
-              Launch Your Dream with Us
-            </h2>
-            <p className="text-lg md:text-xl mb-8">
-              Are you an artist with a vision that pushes the boundaries of reality? Join us in creating the next
-              generation of mind-bending NFTs.
+        {/* Main Content - adjust padding for mobile */}
+        <main className="flex-grow pt-16 md:pt-24 z-10" ref={containerRef}>
+          {/* Hero Section - adjust text sizes for mobile */}
+          <motion.section
+            style={{ opacity, scale, rotateX }}
+            className="mb-16 md:mb-32 perspective-1000 px-4"
+          >
+            <h1 className="text-3xl sm:text-4xl md:text-7xl font-extrabold text-center mb-4 md:mb-8 text-transparent bg-clip-text bg-gradient-to-r from-[#0154fa] to-[#00ffff]">
+              Build Your Dreams
+            </h1>
+            <p className="text-base md:text-xl text-center text-gray-400 max-w-2xl mx-auto">
+              Explore layers of imagination
             </p>
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <a
-                href="https://discord.gg/WVXzaXwcXr"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block bg-[#0154fa] text-white px-6 py-3 rounded-full font-semibold text-lg hover:bg-[#0143d1] transition-colors shadow-lg hover:shadow-[#0154fa]/50"
-              >
-                Open a Ticket in Our Discord
-              </a>
-            </motion.div>
-          </div>
-        </section>
-      </main>
+          </motion.section>
 
-      {/* Footer */}
-      <Footer />
-    </div>
+          {/* Featured Drops Carousel */}
+          <FeaturedDropsCarousel />
+
+          {/* Upcoming Drops Grid */}
+          <UpcomingDropsGrid />
+
+          {/* Call-to-Action Section - adjust padding and text sizes for mobile */}
+          <section className="py-8 md:py-16 px-4">
+            <div className="max-w-4xl mx-auto text-center">
+              <h2 className="text-2xl md:text-4xl font-bold mb-4 md:mb-8 text-[#0154fa]">
+                Launch Your Dream with Us
+              </h2>
+              <p className="text-base md:text-xl mb-6 md:mb-8">
+                Are you an artist with a vision that pushes the boundaries of reality? Join us in creating the next
+                generation of mind-bending NFTs.
+              </p>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <a
+                  href="https://discord.gg/WVXzaXwcXr"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block bg-[#0154fa] text-white px-6 py-3 rounded-full font-semibold text-lg hover:bg-[#0143d1] transition-colors shadow-lg hover:shadow-[#0154fa]/50"
+                >
+                  Open a Ticket in Our Discord
+                </a>
+              </motion.div>
+            </div>
+          </section>
+        </main>
+
+        {/* Footer */}
+        <Footer />
+      </div>
+    </>
   );
 }
