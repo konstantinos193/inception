@@ -88,6 +88,7 @@ export default function MintPage({ params }: { params: { id: string } }) {
   const [forceUpdate, setForceUpdate] = useState(0);
   const [tempQuantity, setTempQuantity] = useState('1');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [tradingEnabled, setTradingEnabled] = useState(false);
 
   // Define fetchMintedCount here
   const fetchMintedCount = async () => {
@@ -111,10 +112,32 @@ export default function MintPage({ params }: { params: { id: string } }) {
     }
   };
 
+  // Add this function to fetch trading status
+  const fetchTradingStatus = async () => {
+    try {
+      if (!collection?.contract_address) return;
+      
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const contract = new ethers.Contract(
+        collection.contract_address,
+        MyNFTCollection.abi,
+        provider
+      );
+
+      const isEnabled = await contract.tradingEnabled();
+      setTradingEnabled(isEnabled);
+      
+      console.log('📊 Trading enabled status:', isEnabled);
+    } catch (error) {
+      console.error('Error fetching trading status:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         await fetchCollection();
+        await fetchTradingStatus();
       } catch (error) {
         console.error('Error:', error);
       }
@@ -519,6 +542,7 @@ export default function MintPage({ params }: { params: { id: string } }) {
       });
 
       await tx.wait();
+      await fetchTradingStatus();
     } catch (error) {
       console.error('[DEBUG] Minting error:', error);
       toast.error(error.message || 'Minting failed. Please try again.');
@@ -1022,6 +1046,24 @@ export default function MintPage({ params }: { params: { id: string } }) {
                 </button>
               </div>
             </div>
+
+            {/* Add the trading status warning */}
+            {!tradingEnabled && (
+              <div className="bg-yellow-900/30 border border-yellow-500/50 rounded-lg p-4 mb-4 md:mb-6">
+                <div className="flex items-start">
+                  <svg className="w-5 h-5 text-yellow-500 mt-0.5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <h3 className="text-yellow-500 font-semibold mb-1">Trading Locked</h3>
+                    <p className="text-yellow-100/70 text-sm">
+                      Trading for this collection is currently locked and will be automatically enabled once the mint is completed. 
+                      You won't be able to transfer or sell your NFTs until then.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="mt-8 md:mt-12">
