@@ -497,17 +497,15 @@ export default function MintPage({ params }: { params: { id: string } }) {
             throw new Error('Invalid phase');
         }
 
-        // Convert price to Wei, handling free mints
-        const priceInWei = phase.price === 0 ? 
-            BigInt(0) : 
-            parseEther(phase.price.toString());
-        
-        const totalValue = priceInWei * BigInt(quantity);
+        // For free mints, both price and value should be 0
+        const priceInWei = BigInt(0);
+        const totalValue = BigInt(0);
 
         console.log('Minting with params:', {
             quantity,
             priceInWei: priceInWei.toString(),
-            totalValue: totalValue.toString()
+            totalValue: totalValue.toString(),
+            isFree: true
         });
 
         // Send the mint transaction
@@ -992,7 +990,9 @@ export default function MintPage({ params }: { params: { id: string } }) {
                 
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-gray-400">Price</span>
-                  <span className="text-[#0154fa]">{phase?.price || 12} APE</span>
+                  <span className="text-[#0154fa]">
+                    {phase?.price === 0 ? "FREE" : `${phase?.price} APE`}
+                  </span>
                 </div>
 
                 <div className="flex justify-between items-center">
