@@ -143,7 +143,7 @@ export default function MintPage({ params }: { params: { id: string } }) {
       }
     };
 
-    // Add this check to prevent immediate fetch
+    // Only fetch collection data if we don't have it
     if (!collection) {
       fetchData();
     }
@@ -328,7 +328,7 @@ export default function MintPage({ params }: { params: { id: string } }) {
       const data = await response.json();
       console.log('Raw collection data:', JSON.stringify(data, null, 2));
       
-      // Process and set collection data first
+      // Process and set collection data
       if (!data || !data.id) {
         throw new Error('Invalid collection data');
       }
@@ -347,17 +347,8 @@ export default function MintPage({ params }: { params: { id: string } }) {
       setCollection(data);
       console.log('Processed collection data:', data);
 
-      // Try to connect wallet only if we don't have an address
-      if (!address && window.ethereum) {
-        try {
-          await ensureWalletConnected();
-        } catch (error: any) {
-          // Don't throw here, just log the error
-          console.warn('Wallet connection failed:', error.message);
-        }
-      }
-
-      // If we have a contract address, try to fetch contract data
+      // Remove the automatic wallet connection attempt
+      // Only fetch contract data if we already have an address
       if (data.contract_address && address) {
         const provider = new BrowserProvider(window.ethereum);
         const contract = await fetchContract(data.contract_address, provider);
