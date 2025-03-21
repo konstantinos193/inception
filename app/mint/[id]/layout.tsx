@@ -12,9 +12,11 @@ async function getCollectionData(id: string) {
     // Get collection data from nft_collections table
     const { data: collection, error: collectionError } = await supabase
       .from('nft_collections')
-      .select('name, description, image')
+      .select('*')  // Changed to select all fields for debugging
       .eq('id', id)
       .single()
+
+    console.log('Raw collection data:', collection) // Debug log
 
     if (collectionError) {
       console.error('Error fetching collection:', collectionError)
@@ -22,9 +24,17 @@ async function getCollectionData(id: string) {
     }
 
     if (collection) {
+      // Log the specific fields we're interested in
+      console.log('Collection name:', collection.name)
+      console.log('Collection description:', collection.description)
+      console.log('Collection image:', collection.image)
+
       return {
-        name: collection.name,
-        description: collection.description || 'Mint NFTs on ApeChain',
+        name: collection.name || 'Inception Collection',
+        // Ensure description is a string and has content
+        description: typeof collection.description === 'string' && collection.description.trim() 
+          ? collection.description 
+          : 'Mint NFTs on ApeChain',
         image: collection.image
       }
     }
@@ -47,6 +57,7 @@ export async function generateMetadata({ params }): Promise<Metadata> {
         title: 'Inception - Where Dreams Become Digital Reality',
         description: 'Mint NFTs on ApeChain',
         images: ['/og-image.jpg'],
+        type: 'website',
       },
       twitter: {
         card: 'summary_large_image',
@@ -57,6 +68,9 @@ export async function generateMetadata({ params }): Promise<Metadata> {
     }
   }
 
+  // Log the final metadata being generated
+  console.log('Generating metadata with description:', collection.description)
+
   return {
     title: `${collection.name} | Inception`,
     description: collection.description,
@@ -64,6 +78,7 @@ export async function generateMetadata({ params }): Promise<Metadata> {
       title: `${collection.name} | Inception`,
       description: collection.description,
       images: [collection.image],
+      type: 'website',
     },
     twitter: {
       card: 'summary_large_image',
