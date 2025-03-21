@@ -134,35 +134,43 @@ export default function MintPage({ params }: { params: { id: string } }) {
   };
 
   useEffect(() => {
+    let mintedInterval: NodeJS.Timeout;
+    let mounted = true;
+
     const fetchData = async () => {
       try {
+        if (!mounted) return;
+        
         await fetchCollection();
+        if (!mounted) return;
+        
         await fetchTotalMinted();
+        if (!mounted) return;
+        
         await fetchTradingStatus();
+        
+        // Set up interval only after initial fetch succeeds
+        mintedInterval = setInterval(async () => {
+          if (mounted) {
+            console.log('Fetching total minted (interval)');
+            await fetchTotalMinted();
+          }
+        }, 5000);
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Error in fetchData:', error);
       }
     };
 
     fetchData();
 
-    // Set up intervals for refreshing data
-    const mintedInterval = setInterval(fetchTotalMinted, 5000);
-    const tradingInterval = setInterval(fetchTradingStatus, 10000);
-
-    const timeout = setTimeout(() => {
-      if (loading) {
-        toast.error('Loading took too long. Please try again.');
-        setLoading(false);
-      }
-    }, 10000);
-
+    // Cleanup function
     return () => {
-      clearInterval(mintedInterval);
-      clearInterval(tradingInterval);
-      clearTimeout(timeout);
+      mounted = false;
+      if (mintedInterval) {
+        clearInterval(mintedInterval);
+      }
     };
-  }, []);
+  }, [collection?.contract_address]); // Add contract_address as dependency
 
   useEffect(() => {
     const checkMintingDisabled = () => {
@@ -762,22 +770,44 @@ export default function MintPage({ params }: { params: { id: string } }) {
 
   const fetchTotalMinted = async () => {
     try {
-      if (!collection?.contract_address) return;
+      if (!collection?.contract_address) {
+        console.log('No contract address available');
+        return;
+      }
       
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const contract = new ethers.Contract(
-        collection.contract_address,
-        MyNFTCollection.abi,
-        provider
-      );
+      // Create a provider that doesn't depend on window.ethereum
+      const provider = new ethers.JsonRpcProvider(APECHAIN.rpcUrls[0]);
+      
+      try {
+        const contract = new ethers.Contract(
+          collection.contract_address,
+          MyNFTCollection.abi,
+          provider
+        );
 
-      // Use the contract's totalSupply function
-      const totalMinted = await contract.totalSupply();
-      setTotalMinted(Number(totalMinted));
-      
-      console.log('📊 Total minted from contract:', totalMinted.toString());
+        const totalSupply = await contract.totalSupply();
+        const newTotalMinted = Number(totalSupply);
+        
+        console.log('📊 Current total minted:', totalMinted);
+        console.log('📊 New total minted:', newTotalMinted);
+        
+        if (newTotalMinted !== totalMinted) {
+          setTotalMinted(newTotalMinted);
+          
+          // Update phase if needed
+          if (collection?.phases?.phases) {
+            const firstPhase = collection.phases.phases[0];
+            if (newTotalMinted >= firstPhase.supply) {
+              setCurrentPhase(1);
+              console.log('Switching to phase 1 - supply reached');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Contract call error:', error);
+      }
     } catch (error) {
-      console.error('Error fetching total minted:', error);
+      console.error('Error in fetchTotalMinted:', error);
     }
   };
 
