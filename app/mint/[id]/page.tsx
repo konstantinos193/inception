@@ -461,14 +461,23 @@ export default function MintPage({ params }: { params: { id: string } }) {
     console.log('Whitelist addresses:', phase.whitelists);
     console.log('User address:', address.toLowerCase());
     
+    // If it's not a whitelist phase, return true
+    if (!phase.is_whitelist) {
+        return true;
+    }
+    
     if (!phase.whitelists || !Array.isArray(phase.whitelists)) {
         console.log('No whitelist array found');
         return false;
     }
 
-    const isWhitelisted = phase.whitelists.includes(address.toLowerCase());
-    console.log('Is user whitelisted?', isWhitelisted);
+    // Case-insensitive check for whitelist
+    const userAddressLower = address.toLowerCase();
+    const isWhitelisted = phase.whitelists.some(addr => 
+        addr.toLowerCase() === userAddressLower
+    );
     
+    console.log('Is user whitelisted?', isWhitelisted);
     return isWhitelisted;
   };
 
@@ -528,53 +537,41 @@ export default function MintPage({ params }: { params: { id: string } }) {
   };
 
   const isMintingDisabled = () => {
-    // Log wallet connection status
-    console.log('Wallet status:', address ? 'Connected' : 'Not connected');
     if (!address) {
-      console.log('🔴 Minting disabled: No wallet connected');
-      return true;
+        console.log('🔴 Minting disabled: No wallet connected');
+        return true;
     }
 
-    // Check if collection and phases data is valid
-    if (!collection?.phases || !Array.isArray(collection.phases.phases) || currentPhase < 0) {
-      console.log('🔴 Minting disabled: Invalid phase data');
-      return true;
+    if (!collection?.phases?.phases || !collection.phases.phases[currentPhase]) {
+        console.log('🔴 Minting disabled: Invalid phase data');
+        return true;
     }
 
     const phase = collection.phases.phases[currentPhase];
-    console.log('Current phase:', phase);
+    console.log('Checking phase:', phase);
 
-    // Check phase start time
-    const now = Date.now();
-    const startTime = phase.start ? new Date(phase.start).getTime() : 0;
-    if (startTime > now) {
-      const timeLeft = startTime - now;
-      console.log(`🔴 Minting disabled: Phase starts in ${formatCountdown(timeLeft)}`);
-      return true;
-    }
-
-    // Check whitelist status
-    if (phase.is_whitelist) {
-      const whitelistCheck = isWhitelistedForCurrentPhase();
-      console.log('Whitelist check:', whitelistCheck ? '✅ Eligible' : '🔴 Not eligible');
-      if (!whitelistCheck) {
+    // Check whitelist status first
+    const whitelistCheck = isWhitelistedForCurrentPhase();
+    console.log('Whitelist check result:', whitelistCheck);
+    if (!whitelistCheck) {
         console.log('🔴 Minting disabled: Not whitelisted for this phase');
         return true;
-      }
+    }
+
+    // Check supply
+    if (totalMinted >= phase.supply) {
+        console.log('🔴 Minting disabled: Supply reached');
+        return true;
     }
 
     // Check max per wallet
     if (mintedCountForWallet >= phase.max_per_wallet) {
-      console.log(`🔴 Minting disabled: Max per wallet (${phase.max_per_wallet}) reached`);
-        console.log('Minting disabled: Max per wallet reached');
+        console.log('🔴 Minting disabled: Max per wallet reached');
         return true;
     }
 
-    if (totalMinted >= phase.supply) {
-        console.log('Minting disabled: Supply reached');
-        return true;
-    }
-
+    // If we get here, minting should be enabled
+    console.log('✅ Minting enabled');
     return false;
   };
 
