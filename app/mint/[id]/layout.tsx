@@ -9,27 +9,17 @@ const supabase = createClient(
 
 async function getCollectionData(id: string) {
   try {
-    // First try to get from featured_drops
-    const { data: featuredDrop, error: featuredError } = await supabase
-      .from('featured_drops')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (featuredDrop) {
-      return {
-        name: featuredDrop.name,
-        description: featuredDrop.description || 'Mint NFTs on ApeChain',
-        image: featuredDrop.image
-      }
-    }
-
-    // If not in featured_drops, try nft_collections
+    // Get collection data from nft_collections table
     const { data: collection, error: collectionError } = await supabase
       .from('nft_collections')
-      .select('*')
+      .select('name, description, image')
       .eq('id', id)
       .single()
+
+    if (collectionError) {
+      console.error('Error fetching collection:', collectionError)
+      return null
+    }
 
     if (collection) {
       return {
@@ -56,13 +46,13 @@ export async function generateMetadata({ params }): Promise<Metadata> {
       openGraph: {
         title: 'Inception - Where Dreams Become Digital Reality',
         description: 'Mint NFTs on ApeChain',
-        images: ['/og-image.jpg'], // Default OG image
+        images: ['/og-image.jpg'],
       },
       twitter: {
         card: 'summary_large_image',
         title: 'Inception - Where Dreams Become Digital Reality',
         description: 'Mint NFTs on ApeChain',
-        images: ['/og-image.jpg'], // Default OG image
+        images: ['/og-image.jpg'],
       },
     }
   }
