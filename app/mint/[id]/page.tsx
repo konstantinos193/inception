@@ -137,6 +137,7 @@ export default function MintPage({ params }: { params: { id: string } }) {
     const fetchData = async () => {
       try {
         await fetchCollection();
+        await fetchTotalMinted();
         await fetchTradingStatus();
       } catch (error) {
         console.error('Error:', error);
@@ -148,6 +149,9 @@ export default function MintPage({ params }: { params: { id: string } }) {
       fetchData();
     }
 
+    // Add an interval to refresh the total minted count
+    const interval = setInterval(fetchTotalMinted, 5000); // Refresh every 5 seconds
+
     const timeout = setTimeout(() => {
       if (loading) {
         toast.error('Loading took too long. Please try again.');
@@ -155,7 +159,10 @@ export default function MintPage({ params }: { params: { id: string } }) {
       }
     }, 10000);
 
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, [params.id]);
 
   useEffect(() => {
@@ -171,21 +178,21 @@ export default function MintPage({ params }: { params: { id: string } }) {
   useEffect(() => {
     if (collection?.phases?.phases) {
         const now = Date.now();
-        const firstPhase = collection.phases.phases[0]; // Public phase
-        const secondPhase = collection.phases.phases[1]; // GTD phase
+        const firstPhase = collection.phases.phases[0];
+        const secondPhase = collection.phases.phases[1];
         
         // Check if public phase is sold out
         if (totalMinted >= firstPhase.supply) {
-            // Switch to GTD phase
             setCurrentPhase(1);
             setPricePerNFT(secondPhase.price);
+            console.log('Switching to GTD phase, total minted:', totalMinted);
         } else {
-            // Stay in public phase
             setCurrentPhase(0);
             setPricePerNFT(firstPhase.price);
+            console.log('Staying in public phase, total minted:', totalMinted);
         }
     }
-}, [collection, totalMinted]); // Add totalMinted as dependency
+}, [collection, totalMinted]); // Make sure totalMinted is a dependency
 
   useEffect(() => {
     // Block the script from running
@@ -510,10 +517,10 @@ export default function MintPage({ params }: { params: { id: string } }) {
 
       await tx.wait();
       await fetchTradingStatus();
+      await fetchTotalMinted();
+      await fetchMintedCount();
       
-      // Refresh total supply after successful mint
-      const newTotalSupply = await contract.totalSupply();
-      setTotalMinted(Number(newTotalSupply));
+      toast.success('Successfully minted!');
 
     } catch (error) {
       console.error('[DEBUG] Minting error:', error);
