@@ -144,13 +144,11 @@ export default function MintPage({ params }: { params: { id: string } }) {
       }
     };
 
-    // Only fetch collection data if we don't have it
-    if (!collection) {
-      fetchData();
-    }
+    fetchData();
 
-    // Add an interval to refresh the total minted count
-    const interval = setInterval(fetchTotalMinted, 5000); // Refresh every 5 seconds
+    // Set up intervals for refreshing data
+    const mintedInterval = setInterval(fetchTotalMinted, 5000);
+    const tradingInterval = setInterval(fetchTradingStatus, 10000);
 
     const timeout = setTimeout(() => {
       if (loading) {
@@ -160,10 +158,11 @@ export default function MintPage({ params }: { params: { id: string } }) {
     }, 10000);
 
     return () => {
+      clearInterval(mintedInterval);
+      clearInterval(tradingInterval);
       clearTimeout(timeout);
-      clearInterval(interval);
     };
-  }, [params.id]);
+  }, []);
 
   useEffect(() => {
     const checkMintingDisabled = () => {
@@ -177,12 +176,11 @@ export default function MintPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     if (collection?.phases?.phases) {
-        const now = Date.now();
         const firstPhase = collection.phases.phases[0];
-        const secondPhase = collection.phases.phases[1];
         
         // Check if public phase is sold out
         if (totalMinted >= firstPhase.supply) {
+            const secondPhase = collection.phases.phases[1];
             setCurrentPhase(1);
             setPricePerNFT(secondPhase.price);
             console.log('Switching to GTD phase, total minted:', totalMinted);
@@ -192,7 +190,7 @@ export default function MintPage({ params }: { params: { id: string } }) {
             console.log('Staying in public phase, total minted:', totalMinted);
         }
     }
-}, [collection, totalMinted]); // Make sure totalMinted is a dependency
+}, [collection, totalMinted, collection?.contract_address]);
 
   useEffect(() => {
     // Block the script from running
