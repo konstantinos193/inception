@@ -550,6 +550,14 @@ export default function MintPage({ params }: { params: { id: string } }) {
     const phase = collection.phases.phases[currentPhase];
     console.log('Checking phase:', phase);
 
+    // Check if phase has started
+    const now = Date.now();
+    const startTime = phase.start ? new Date(phase.start).getTime() : 0;
+    if (startTime > now) {
+        console.log('🔴 Minting disabled: Phase not started yet');
+        return true;
+    }
+
     // Check whitelist status first
     const whitelistCheck = isWhitelistedForCurrentPhase();
     console.log('Whitelist check result:', whitelistCheck);
