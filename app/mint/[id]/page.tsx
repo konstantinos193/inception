@@ -596,15 +596,21 @@ export default function MintPage({ params }: { params: { id: string } }) {
         return true;
     }
 
-    // Check supply
-    if (totalMinted >= phase.supply) {
-        console.log('🔴 Minting disabled: Supply reached');
+    // Calculate total minted for current phase
+    const previousPhasesSupply = collection.phases.phases
+        .slice(0, currentPhase)
+        .reduce((total, p) => total + p.supply, 0);
+    const currentPhaseMinted = totalMinted - previousPhasesSupply;
+    
+    // Check if current phase is sold out
+    if (currentPhaseMinted >= phase.supply) {
+        console.log('🔴 Minting disabled: Current phase supply reached');
         return true;
     }
 
     // Check max per wallet for current phase
-    const currentPhaseMinted = mintedCountsPerPhase[phase.id] || 0;
-    if (currentPhaseMinted >= phase.max_per_wallet) {
+    const currentPhaseMintedForWallet = mintedCountsPerPhase[phase.id] || 0;
+    if (currentPhaseMintedForWallet >= phase.max_per_wallet) {
         console.log('🔴 Minting disabled: Max per wallet reached for this phase');
         return true;
     }
