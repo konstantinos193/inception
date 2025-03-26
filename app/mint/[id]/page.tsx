@@ -654,12 +654,18 @@ export default function MintPage({ params }: { params: { id: string } }) {
     if (!address) return "Connect Wallet";
     if (isFetchingMintedCount) return "Loading...";
     
-    if (totalMinted >= phase.supply) {
-      return "Sold Out";
+    // Check if this phase is sold out
+    const previousPhasesSupply = collection.phases.phases
+      .slice(0, currentPhase)
+      .reduce((total, p) => total + p.supply, 0);
+    const currentPhaseMinted = totalMinted - previousPhasesSupply;
+    
+    if (currentPhaseMinted >= phase.supply) {
+      return "Phase Sold Out";
     }
 
-    const currentPhaseMinted = mintedCountsPerPhase[phase.id] || 0;
-    if (currentPhaseMinted >= phase.max_per_wallet) {
+    const currentPhaseMintedForWallet = mintedCountsPerPhase[phase.id] || 0;
+    if (currentPhaseMintedForWallet >= phase.max_per_wallet) {
       return "Max Per Wallet Minted for this Phase";
     }
 
