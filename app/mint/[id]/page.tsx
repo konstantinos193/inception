@@ -70,6 +70,18 @@ const MeLogo = () => (
   </svg>
 );
 
+// Add this type definition at the top of the file
+type Phase = {
+  id: string;
+  name: string;
+  price: number;
+  supply: number;
+  max_per_wallet: number;
+  start: string;
+  is_whitelist: boolean;
+  whitelists: string[];
+};
+
 export default function MintPage({ params }: { params: { id: string } }) {
   const [collection, setCollection] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -81,7 +93,7 @@ export default function MintPage({ params }: { params: { id: string } }) {
   const [address, setAddress] = useState<string | null>(null)
   const [pricePerNFT, setPricePerNFT] = useState<number | null>(null)
   const [isButtonDisabled, setIsButtonDisabled] = useState(true)
-  const [mintedCountForWallet, setMintedCountForWallet] = useState(0)
+  const [mintedCountsPerPhase, setMintedCountsPerPhase] = useState<{[key: string]: number}>({})
   const [isFetchingMintedCount, setIsFetchingMintedCount] = useState(false)
   const [whitelistsNotLoaded, setWhitelistsNotLoaded] = useState(false)
   const [phaseWhitelistStatus, setPhaseWhitelistStatus] = useState<{[key: string]: boolean}>({});
@@ -90,7 +102,7 @@ export default function MintPage({ params }: { params: { id: string } }) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [tradingEnabled, setTradingEnabled] = useState(false);
 
-  // Define fetchMintedCount here
+  // Update fetchMintedCount to handle per-phase counts
   const fetchMintedCount = async () => {
     if (address) {
       try {
@@ -100,9 +112,8 @@ export default function MintPage({ params }: { params: { id: string } }) {
           throw new Error('Failed to fetch minted NFTs count');
         }
 
-        const { mintedCount } = await response.json();
-        console.log('Fetched minted count:', mintedCount);
-        setMintedCountForWallet(mintedCount || 0);
+        const { mintedCounts } = await response.json();
+        setMintedCountsPerPhase(mintedCounts || {});
       } catch (error) {
         console.error('Error fetching minted NFTs count:', error);
         toast.error('Failed to check minted NFTs count. Please try again.');
@@ -180,7 +191,7 @@ export default function MintPage({ params }: { params: { id: string } }) {
     };
 
     checkMintingDisabled();
-  }, [address, collection, currentPhase, totalMinted, mintedCountForWallet]);
+  }, [address, collection, currentPhase, totalMinted, mintedCountsPerPhase]);
 
   useEffect(() => {
     if (collection?.phases?.phases) {
@@ -524,6 +535,25 @@ export default function MintPage({ params }: { params: { id: string } }) {
         });
 
         await tx.wait();
+
+        // Record the minted NFTs with phase ID
+        const response = await fetch('/api/minted-nfts', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                wallet: address,
+                collectionId: params.id,
+                quantity,
+                phaseId: phase.id
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to record minted NFTs');
+        }
+
         await fetchTradingStatus();
         await fetchTotalMinted();
         await fetchMintedCount();
@@ -572,9 +602,10 @@ export default function MintPage({ params }: { params: { id: string } }) {
         return true;
     }
 
-    // Check max per wallet
-    if (mintedCountForWallet >= phase.max_per_wallet) {
-        console.log('🔴 Minting disabled: Max per wallet reached');
+    // Check max per wallet for current phase
+    const currentPhaseMinted = mintedCountsPerPhase[phase.id] || 0;
+    if (currentPhaseMinted >= phase.max_per_wallet) {
+        console.log('🔴 Minting disabled: Max per wallet reached for this phase');
         return true;
     }
 
@@ -627,8 +658,9 @@ export default function MintPage({ params }: { params: { id: string } }) {
       return "Sold Out";
     }
 
-    if (mintedCountForWallet >= phase.max_per_wallet) {
-      return "Max Per Wallet Minted";
+    const currentPhaseMinted = mintedCountsPerPhase[phase.id] || 0;
+    if (currentPhaseMinted >= phase.max_per_wallet) {
+      return "Max Per Wallet Minted for this Phase";
     }
 
     if (isMinting) return "Minting...";
