@@ -2,65 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --background: 0 0% 3.9%;
+  --foreground: 0 0% 98%;
+  --card: 0 0% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 20.5 90.2% 48.2%;
+  --primary-foreground: 0 0% 98%;
+  --secondary: 0 0% 14.9%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 0 0% 14.9%;
+  --muted-foreground: 0 0% 63.9%;
+  --accent: 0 0% 14.9%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 0 0% 14.9%;
+  --input: 0 0% 14.9%;
+  --ring: 20.5 90.2% 48.2%;
+  --radius: 0.5rem;
+}
+
 body {
-  font-family: "Inter", sans-serif;
-  color: #e2e8f0;
-  background-color: #1a202c;
+  background: linear-gradient(to bottom right, #000000, #111111, #000000);
+  color: white;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+@layer base {
+  * {
+    @apply border-border;
   }
-}
-
-.glow {
-  box-shadow: 0 0 15px rgba(1, 84, 250, 0.5);
-}
-
-.perspective-1000 {
-  perspective: 1000px;
-}
-
-@keyframes spin-slow {
-  from {
-    transform: rotate(0deg);
+  body {
+    @apply bg-background text-foreground;
   }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.spin-slow {
-  animation: spin-slow 20s linear infinite;
-}
-
-.menu {
-  position: fixed;
-  top: 0;
-  right: -250px; /* Start off-screen to the right */
-  height: 100%;
-  width: 250px; /* Adjust width as needed */
-  background-color: #2d3748; /* Dark background for the menu */
-  transition: right 0.3s ease; /* Smooth transition */
-  z-index: 2000; /* Ensure it appears above other content */
-  padding: 20px; /* Add some padding */
-  box-shadow: -2px 0 5px rgba(0, 0, 0, 0.5); /* Add shadow for depth */
-}
-
-.menu.open {
-  right: 0; /* Slide in from the right */
-}
-
-.menu a {
-  display: block; /* Make links block elements */
-  padding: 10px 0; /* Add padding for links */
-  color: #e2e8f0; /* Link color */
-  text-decoration: none; /* Remove underline */
-  transition: color 0.2s; /* Smooth color transition */
-}
-
-.menu a:hover {
-  color: #0154fa; /* Change color on hover */
 }
 
