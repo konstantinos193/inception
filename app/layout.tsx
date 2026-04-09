@@ -17,7 +17,7 @@ export const metadata = {
   },
   openGraph: {
     type: 'website',
-    url: 'https://tao-evm-nft-launchpad.xyz',
+    url: 'https://elevate.chunkiesgaming.com',
     title: 'TAO EVM NFT Launchpad',
     description: 'A TAO EVM NFT Launchpad for Digital Collectibles',
     siteName: 'TAO EVM NFT Launchpad',
