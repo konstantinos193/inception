@@ -347,25 +347,25 @@ export function ProjectDetail() {
   }, [onChainPhases, selectedPhaseIndex])
 
   // How much can this wallet still mint in the selected phase?
-  const { data: walletPhaseMinted } = useReadContract({
+  const { data: walletPhaseMinted, refetch: refetchPhaseMinted } = useReadContract({
     ...contractCfg,
     functionName: "walletPhaseMintsOf",
     args: [connectedWallet!, BigInt(selectedPhaseIndex ?? 0)],
-    query: { enabled: hasContract && !!connectedWallet && selectedPhaseIndex !== null },
+    query: { enabled: hasContract && !!connectedWallet && selectedPhaseIndex !== null, refetchInterval: 10_000 },
   })
 
-  const { data: walletTotalMinted } = useReadContract({
+  const { data: walletTotalMinted, refetch: refetchTotalMinted } = useReadContract({
     ...contractCfg,
     functionName: "totalMints",
     args: [connectedWallet!],
-    query: { enabled: hasContract && !!connectedWallet },
+    query: { enabled: hasContract && !!connectedWallet, refetchInterval: 10_000 },
   })
 
   // Get global max per wallet from contract
   const { data: globalMaxPerWallet } = useReadContract({
     ...contractCfg,
     functionName: "globalMaxPerWallet",
-    query: { enabled: hasContract },
+    query: { enabled: hasContract, refetchInterval: 30_000 },
   })
 
   // Native balance of connected wallet
@@ -399,23 +399,55 @@ export function ProjectDetail() {
   const mintSignature     = sigData?.signature ?? "0x"
   const wlMaxAllowance    = sigData?.maxAllowance ?? 0
 
-  // ── Per-wallet mint limit ──────────────────────────────────────────────────// Per-wallet mint limit - MUST match smart contract logic exactly
-  
+  // ── Per-wallet mint limit — MUST match TaoNFT.sol mint() lines 178-203 exactly ──
+  //
+  // Contract logic:
+  //   Allowlist: effectiveMax = maxAllowance > 0 ? maxAllowance : phase.maxPerWallet
+  //             if effectiveMax > 0 && walletPhase + qty > effectiveMax → revert
+  //   Public:   if phase.maxPerWallet > 0 && walletPhase + qty > phase.maxPerWallet → revert
+  //   Global:   if globalMaxPerWallet > 0 && totalMints + qty > globalMaxPerWallet → revert
+  //   (0 means unlimited for all three checks)
+
+  const alreadyMintedThisPhase = walletPhaseMinted != null ? Number(walletPhaseMinted) : 0
+  const alreadyMintedTotal = walletTotalMinted != null ? Number(walletTotalMinted) : 0
+  const globalMaxPer = globalMaxPerWallet != null ? Number(globalMaxPerWallet) : 0
+
+  // Effective per-wallet cap for the selected phase (mirrors contract exactly)
   const effectiveMaxPerWallet: number = useMemo(() => {
     if (!activeOnChainPhase) return project?.maxPerWallet ?? 10
-    return activeOnChainPhase.maxPerWallet || 999
-  }, [activeOnChainPhase, project])
+    if (isAllowlistPhase) {
+      // Contract line 189: effectiveMax = maxAllowance > 0 ? maxAllowance : phase.maxPerWallet
+      return wlMaxAllowance > 0 ? wlMaxAllowance : activeOnChainPhase.maxPerWallet
+    }
+    // Public phase: phase.maxPerWallet (0 = unlimited)
+    return activeOnChainPhase.maxPerWallet
+  }, [activeOnChainPhase, project, isAllowlistPhase, wlMaxAllowance])
 
-  const alreadyMintedThisPhase = walletPhaseMinted ? Number(walletPhaseMinted) : 0
-  const alreadyMintedTotal = walletTotalMinted ? Number(walletTotalMinted) : 0
-  const globalMaxPer = globalMaxPerWallet ? Number(globalMaxPerWallet) : 0
+  // Remaining per phase (0 = unlimited → Infinity)
+  const remainingInPhase = effectiveMaxPerWallet > 0
+    ? Math.max(0, effectiveMaxPerWallet - alreadyMintedThisPhase)
+    : Infinity
 
-  // Calculate remaining based on BOTH phase and global limits (exactly like smart contract)
-  const remainingInPhase = Math.max(0, effectiveMaxPerWallet - alreadyMintedThisPhase)
-  const remainingGlobal = globalMaxPer > 0 ? Math.max(0, globalMaxPer - alreadyMintedTotal) : 999
-  
+  // Remaining per global limit (0 = unlimited → Infinity)
+  const remainingGlobal = globalMaxPer > 0
+    ? Math.max(0, globalMaxPer - alreadyMintedTotal)
+    : Infinity
+
   // The actual remaining is the MINIMUM of phase and global limits (contract enforces both)
-  const remainingForWallet = Math.min(remainingInPhase, remainingGlobal)
+  // Also cap by phase supply remaining and collection supply remaining
+  const phaseSupplyRemaining = activeOnChainPhase
+    ? (activeOnChainPhase.maxSupply > 0
+        ? Math.max(0, activeOnChainPhase.maxSupply - activeOnChainPhase.minted)
+        : Infinity)
+    : Infinity
+
+  const collectionSupplyRemaining = onChainStatus?.onChain
+    ? Math.max(0, onChainStatus.onChain.maxSupply - (onChainTotalMinted ?? 0))
+    : Infinity
+
+  const remainingForWallet = Math.min(remainingInPhase, remainingGlobal, phaseSupplyRemaining, collectionSupplyRemaining)
+  // For display: convert Infinity to 0 to show "unlimited", but keep numeric for logic
+  const displayEffectiveMax = effectiveMaxPerWallet > 0 ? effectiveMaxPerWallet : 0
 
   // ── Write contract ─────────────────────────────────────────────────────────
   const { writeContractAsync, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract()
@@ -441,6 +473,52 @@ export function ProjectDetail() {
     setCurrentTxHash(null)
     resetWrite()
 
+    // ── Pre-mint validation (mirrors TaoNFT.sol mint() checks) ────────────
+    // Refetch wallet data directly from chain to ensure we have the latest state
+    // (React state may not have updated yet, so use returned data from refetch)
+    let freshPhaseMinted = alreadyMintedThisPhase
+    let freshTotalMinted = alreadyMintedTotal
+    try {
+      const [phaseResult, totalResult] = await Promise.all([refetchPhaseMinted(), refetchTotalMinted()])
+      if (phaseResult.data != null) freshPhaseMinted = Number(phaseResult.data)
+      if (totalResult.data != null) freshTotalMinted = Number(totalResult.data)
+    } catch { /* proceed with cached data if refetch fails */ }
+
+    // Phase active check
+    const now = Math.floor(Date.now() / 1000)
+    if (now < Number(activeOnChainPhase.startTime)) {
+      setMintError("Phase has not started yet"); return
+    }
+    if (activeOnChainPhase.endTime > 0n && now > Number(activeOnChainPhase.endTime)) {
+      setMintError("Phase has ended"); return
+    }
+    if (activeOnChainPhase.paused) {
+      setMintError("This phase is currently paused"); return
+    }
+
+    // Per-wallet phase limit (mirrors contract lines 181-198)
+    if (isAllowlistPhase) {
+      if (!walletOnAllowlist) { setMintError("Not on allowlist for this phase"); return }
+      const effMax = wlMaxAllowance > 0 ? wlMaxAllowance : activeOnChainPhase.maxPerWallet
+      if (effMax > 0 && freshPhaseMinted + mintQuantity > effMax) {
+        setMintError(`Phase wallet limit reached (${freshPhaseMinted}/${effMax})`); return
+      }
+    } else {
+      if (activeOnChainPhase.maxPerWallet > 0 && freshPhaseMinted + mintQuantity > activeOnChainPhase.maxPerWallet) {
+        setMintError(`Phase wallet limit reached (${freshPhaseMinted}/${activeOnChainPhase.maxPerWallet})`); return
+      }
+    }
+
+    // Global wallet limit (mirrors contract line 201)
+    if (globalMaxPer > 0 && freshTotalMinted + mintQuantity > globalMaxPer) {
+      setMintError(`Global wallet limit reached (${freshTotalMinted}/${globalMaxPer} across all phases)`); return
+    }
+
+    // Phase supply check
+    if (activeOnChainPhase.maxSupply > 0 && activeOnChainPhase.minted + mintQuantity > activeOnChainPhase.maxSupply) {
+      setMintError("Phase supply exhausted"); return
+    }
+
     try {
       // Estimate gas explicitly to avoid inflated defaults that exceed chain gas caps
       const mintArgs = {
@@ -452,7 +530,7 @@ export function ProjectDetail() {
           BigInt(mintQuantity),
           mintSignature as `0x${string}`,
           BigInt(wlMaxAllowance),
-        ],
+        ] as const,
         value: activeOnChainPhase.price * BigInt(mintQuantity),
       }
 
@@ -463,13 +541,13 @@ export function ProjectDetail() {
           account: connectedWallet,
         })
         // Add 30% buffer, but cap at 15M (safely under common RPC caps like 16.7M)
-        gasLimit = estimatedGas * 130n / 100n
-        if (gasLimit > 15_000_000n) gasLimit = 15_000_000n
+        gasLimit = estimatedGas * BigInt(130) / BigInt(100)
+        if (gasLimit > BigInt(15_000_000)) gasLimit = BigInt(15_000_000)
         console.log("Estimated gas:", estimatedGas.toString(), "Using:", gasLimit.toString())
       } catch (estimateError) {
         console.warn("Gas estimation failed, using safe default:", estimateError)
         // Safe fallback: 500k gas is generous for ERC-721A mint
-        gasLimit = 500_000n
+        gasLimit = BigInt(500_000)
       }
 
       const hash = await writeContractAsync({
@@ -505,6 +583,8 @@ export function ProjectDetail() {
 
           loadOnChainStatus()
           loadProject()
+          refetchPhaseMinted()
+          refetchTotalMinted()
           
           // Record the mint with token IDs extracted by the backend
           recordOnChainMint({
@@ -549,6 +629,8 @@ export function ProjectDetail() {
 
             loadOnChainStatus()
             loadProject()
+            refetchPhaseMinted()
+            refetchTotalMinted()
             recordOnChainMint({
               slug,
               wallet: connectedWallet ?? "",
@@ -606,6 +688,8 @@ export function ProjectDetail() {
           
           loadOnChainStatus()
           loadProject()
+          refetchPhaseMinted()
+          refetchTotalMinted()
           recordOnChainMint({
             slug,
             wallet: connectedWallet ?? "",
@@ -648,6 +732,8 @@ export function ProjectDetail() {
           
           loadOnChainStatus()
           loadProject()
+          refetchPhaseMinted()
+          refetchTotalMinted()
           recordOnChainMint({
             slug,
             wallet: connectedWallet ?? "",
@@ -961,11 +1047,13 @@ export function ProjectDetail() {
             <CheckCircle2 className="w-8 h-8 text-orange-400 mx-auto mb-2" />
             <p className="text-orange-400 font-medium">Mint limit reached</p>
             <div className="text-gray-500 text-xs mt-1 space-y-1">
-              <p>Phase: {alreadyMintedThisPhase} / {effectiveMaxPerWallet === 999 ? "unlimited" : effectiveMaxPerWallet}</p>
+              <p>Phase: {alreadyMintedThisPhase}/{displayEffectiveMax > 0 ? displayEffectiveMax : "∞"}</p>
               {globalMaxPer > 0 && (
-                <p>Total: {alreadyMintedTotal} / {globalMaxPer} across all phases</p>
+                <p>Total: {alreadyMintedTotal}/{globalMaxPer} across all phases</p>
               )}
-              <p className="text-orange-400 font-medium">You can mint {remainingForWallet} more NFT{remainingForWallet !== 1 ? 's' : ''}</p>
+              {remainingForWallet > 0 && remainingForWallet < Infinity && (
+                <p className="text-orange-400 font-medium">You can mint {remainingForWallet} more NFT{remainingForWallet !== 1 ? 's' : ''}</p>
+              )}
             </div>
           </div>
         </div>
@@ -1017,11 +1105,11 @@ export function ProjectDetail() {
             )}
           </div>
           <div className="flex flex-col gap-1 font-mono text-gray-500">
-            <div>Phase: {alreadyMintedThisPhase}/{effectiveMaxPerWallet === 999 ? "unlimited" : effectiveMaxPerWallet}</div>
+            <div>Phase: {alreadyMintedThisPhase}/{displayEffectiveMax > 0 ? displayEffectiveMax : "∞"}</div>
             {globalMaxPer > 0 && (
               <div>Total: {alreadyMintedTotal}/{globalMaxPer} across all phases</div>
             )}
-            <div className="text-green-400 font-medium">Can mint {remainingForWallet} more NFT{remainingForWallet !== 1 ? 's' : ''}</div>
+            <div className="text-green-400 font-medium">Can mint {remainingForWallet === Infinity ? "unlimited" : remainingForWallet} more NFT{remainingForWallet !== 1 ? 's' : ''}</div>
           </div>
         </div>
 
@@ -1034,8 +1122,8 @@ export function ProjectDetail() {
               className="h-9 w-9 p-0 text-lg">−</Button>
             <span className="text-white font-bold text-lg w-8 text-center tabular-nums">{mintQuantity}</span>
             <Button variant="outline" size="sm"
-              onClick={() => setMintQuantity(Math.min(remainingForWallet, mintQuantity + 1))}
-              disabled={mintQuantity >= remainingForWallet}
+              onClick={() => setMintQuantity(Math.min(remainingForWallet === Infinity ? 50 : remainingForWallet, mintQuantity + 1))}
+              disabled={remainingForWallet !== Infinity && mintQuantity >= remainingForWallet}
               className="h-9 w-9 p-0 text-lg">+</Button>
           </div>
           <div className="flex-1 p-2.5 rounded-lg bg-white/5 border border-white/10 text-center">
