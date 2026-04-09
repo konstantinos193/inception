@@ -442,10 +442,11 @@ export function ProjectDetail() {
     resetWrite()
 
     try {
-      const hash = await writeContractAsync({
+      // Estimate gas explicitly to avoid inflated defaults that exceed chain gas caps
+      const mintArgs = {
         address: contractAddress,
         abi: TAO_NFT_ABI,
-        functionName: "mint",
+        functionName: "mint" as const,
         args: [
           BigInt(selectedPhaseIndex),
           BigInt(mintQuantity),
@@ -453,6 +454,27 @@ export function ProjectDetail() {
           BigInt(wlMaxAllowance),
         ],
         value: activeOnChainPhase.price * BigInt(mintQuantity),
+      }
+
+      let gasLimit: bigint | undefined
+      try {
+        const estimatedGas = await publicClient.estimateContractGas({
+          ...mintArgs,
+          account: connectedWallet,
+        })
+        // Add 30% buffer, but cap at 15M (safely under common RPC caps like 16.7M)
+        gasLimit = estimatedGas * 130n / 100n
+        if (gasLimit > 15_000_000n) gasLimit = 15_000_000n
+        console.log("Estimated gas:", estimatedGas.toString(), "Using:", gasLimit.toString())
+      } catch (estimateError) {
+        console.warn("Gas estimation failed, using safe default:", estimateError)
+        // Safe fallback: 500k gas is generous for ERC-721A mint
+        gasLimit = 500_000n
+      }
+
+      const hash = await writeContractAsync({
+        ...mintArgs,
+        gas: gasLimit,
       })
 
       // Show hash immediately
