@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
+import { useWebSocket } from "@/hooks/use-websocket"
 import {
   ArrowLeft, ExternalLink, Users, TrendingUp, Clock, Calendar,
   Globe, MessageCircle, Check, Flame, BarChart3, Wallet, Zap,
@@ -92,7 +93,13 @@ export function ProjectDetail() {
 
   // ── On-chain minting state ─────────────────────────────────────────────────
   const [mintQuantity, setMintQuantity] = useState(1)
-  const [mintSuccess, setMintSuccess] = useState<{ txHash: string; quantity: number } | null>(null)
+  const [mintSuccess, setMintSuccess] = useState<{ 
+    txHash: string; 
+    quantity: number;
+    phaseName: string;
+    priceEach: number;
+    totalCost: number;
+  } | null>(null)
   const [mintError, setMintError] = useState<string | null>(null)
 
   // Wallet context
@@ -142,10 +149,41 @@ export function ProjectDetail() {
   useEffect(() => { loadProject() }, [loadProject])
 
   useEffect(() => {
-    if (!project || project.status !== "live" || hasContract) return
+    if (!project || project.status !== "live") return
     const id = setInterval(loadProject, 10_000)
     return () => clearInterval(id)
-  }, [project?.status, loadProject, hasContract])
+  }, [project?.status, loadProject])
+
+  // WebSocket for real-time updates (moved after all dependencies are defined)
+  const { isConnected: isWsConnected } = useWebSocket({
+    slug,
+    onProjectUpdate: useCallback((data: any) => {
+      console.log("Real-time project update received:", data)
+      loadProject()
+      loadOnChainStatus()
+    }, [loadProject, loadOnChainStatus]),
+    onMintEvent: useCallback((mintData: any) => {
+      console.log("Real-time mint event received:", mintData)
+      // Refresh project data to show newly minted NFTs
+      loadProject()
+      loadOnChainStatus()
+      
+      // Show a subtle notification for real-time mints from other users
+      if (mintData.wallet !== connectedWallet) {
+        // You could add a toast notification here if desired
+        console.log(`New mint: ${mintData.quantity} NFT(s) by ${mintData.wallet.slice(0, 6)}...${mintData.wallet.slice(-4)}`)
+      }
+    }, [loadProject, loadOnChainStatus, connectedWallet]),
+    onConnect: useCallback(() => {
+      console.log(`WebSocket connected for real-time updates on ${slug}`)
+    }, [slug]),
+    onDisconnect: useCallback(() => {
+      console.log(`WebSocket disconnected for ${slug}`)
+    }, [slug]),
+    onError: useCallback((error: any) => {
+      console.error(`WebSocket error for ${slug}:`, error)
+    }, [slug]),
+  })
 
   // ── Countdown ticker ───────────────────────────────────────────────────────
   const [nowSecs, setNowSecs] = useState(() => Math.floor(Date.now() / 1000))
@@ -276,9 +314,24 @@ export function ProjectDetail() {
   // Update UI + sync DB after confirmed tx
   useEffect(() => {
     if (isTxSuccess && txHash && activeOnChainPhase && selectedPhaseIndex !== null) {
-      setMintSuccess({ txHash, quantity: mintQuantity })
+      // Reset minting state immediately
+      resetWrite()
+      
+      // Set success state with full details
+      setMintSuccess({ 
+        txHash, 
+        quantity: mintQuantity,
+        phaseName: activeOnChainPhase.name,
+        priceEach: Number(fmt(activeOnChainPhase.price)),
+        totalCost: Number(fmt(activeOnChainPhase.price * BigInt(mintQuantity)))
+      })
       setMintError(null)
+      
+      // Refresh data
       loadOnChainStatus()
+      loadProject()
+      
+      // Record mint event
       recordOnChainMint({
         slug,
         wallet: connectedWallet ?? "",
@@ -288,9 +341,11 @@ export function ProjectDetail() {
         phaseName: activeOnChainPhase.name,
         priceEach: Number(fmt(activeOnChainPhase.price)),
       })
+      
+      // Reset quantity
       setMintQuantity(1)
     }
-  }, [isTxSuccess, txHash])
+  }, [isTxSuccess, txHash, loadProject, activeOnChainPhase, selectedPhaseIndex, mintQuantity, connectedWallet])
 
   // Surface write errors
   useEffect(() => {
@@ -299,6 +354,7 @@ export function ProjectDetail() {
         ?? writeError.message
         ?? "Transaction failed"
       setMintError(msg)
+      resetWrite() // Reset state on error
     }
   }, [writeError])
 
@@ -845,14 +901,76 @@ export function ProjectDetail() {
               {/* Mint panel */}
               {renderMintPanel()}
 
-              {/* Success toast */}
+              {/* Success Modal */}
               {mintSuccess && (
-                <div className="mt-3 flex items-center gap-2 text-green-400 text-sm p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                  <span>
-                    Minted {mintSuccess.quantity} NFT{mintSuccess.quantity > 1 ? "s" : ""}!{" "}
-                    <span className="font-mono text-xs opacity-70">{mintSuccess.txHash.slice(0, 10)}…</span>
-                  </span>
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                  <div className="bg-gradient-to-br from-gray-900 to-gray-800 border border-gray-700 rounded-2xl p-6 max-w-md w-full shadow-2xl">
+                    {/* Success Header */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center">
+                        <CheckCircle2 className="w-6 h-6 text-green-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white">Mint Successful!</h3>
+                        <p className="text-gray-400 text-sm">Your NFT{mintSuccess.quantity > 1 ? 's' : ''} {mintSuccess.quantity > 1 ? 'have' : 'has'} been minted</p>
+                      </div>
+                    </div>
+
+                    {/* Mint Details */}
+                    <div className="space-y-3 mb-4">
+                      <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                        <span className="text-gray-400 text-sm">Phase</span>
+                        <span className="text-white font-medium">{mintSuccess.phaseName}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                        <span className="text-gray-400 text-sm">Quantity</span>
+                        <span className="text-white font-medium">{mintSuccess.quantity} NFT{mintSuccess.quantity > 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                        <span className="text-gray-400 text-sm">Price Each</span>
+                        <span className="text-white font-medium">{mintSuccess.priceEach} ETH</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-gray-700">
+                        <span className="text-gray-400 text-sm">Total Cost</span>
+                        <span className="text-white font-medium">{mintSuccess.totalCost} ETH</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-gray-400 text-sm">Transaction</span>
+                        <a 
+                          href={`https://sepolia.etherscan.io/tx/${mintSuccess.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-400 hover:text-blue-300 font-mono text-sm transition-colors"
+                        >
+                          {mintSuccess.txHash.slice(0, 8)}...{mintSuccess.txHash.slice(-8)}
+                          <ExternalLink className="w-3 h-3 inline ml-1" />
+                        </a>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setMintSuccess(null)}
+                        className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg transition-colors"
+                      >
+                        Close
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMintSuccess(null)
+                          // Scroll to recently minted section
+                          const recentlyMinted = document.getElementById('recently-minted')
+                          if (recentlyMinted) {
+                            recentlyMinted.scrollIntoView({ behavior: 'smooth' })
+                          }
+                        }}
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white py-2 px-4 rounded-lg transition-all"
+                      >
+                        View NFT{mintSuccess.quantity > 1 ? 's' : ''}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
