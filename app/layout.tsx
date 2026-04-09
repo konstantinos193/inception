@@ -23,7 +23,7 @@ export const metadata = {
     siteName: 'Elevate',
     images: [
       {
-        url: 'https://i.postimg.cc/Jhz58dnq/image.png',
+        url: '/og-image.webp',
         width: 1200,
         height: 630,
         alt: 'Elevate Launchpad',
@@ -34,7 +34,7 @@ export const metadata = {
     card: 'summary_large_image',
     title: 'Elevate',
     description: 'A Pre-Sale Ordinals & Runes Launchpad',
-    images: ['https://i.postimg.cc/Jhz58dnq/image.png'],
+    images: ['/og-image.webp'],
   },
 }
 
