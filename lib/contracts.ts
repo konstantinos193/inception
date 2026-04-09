@@ -23,6 +23,8 @@ export const TAO_NFT_ABI = [
   "function platformFeeRecipient() view returns (address)",
   "function platformFeeBps() view returns (uint96)",
   "function paused() view returns (bool)",
+  "function transfersLocked() view returns (bool)",
+  "function mintRecipient() view returns (address)",
 
   "function totalPhases() view returns (uint256)",
   "function getPhase(uint256 index) view returns (tuple(string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, uint32 minted, bytes32 merkleRoot, bool paused))",
@@ -58,7 +60,9 @@ export const TAO_NFT_ABI = [
   "function ownerMintBatch(address[] recipients, uint256[] quantities)",
   "function pause()",
   "function unpause()",
-"function setGlobalMaxPerWallet(uint256 max)",
+  "function unlockTransfers()",
+  "function setMintRecipient(address recipient)",
+  "function setGlobalMaxPerWallet(uint256 max)",
   "function updateReservedSupply(uint256 reserved)",
 
   // ── Events ────────────────────────────────────────────────────────────────

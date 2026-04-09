@@ -18,12 +18,12 @@ import { Separator } from "@/components/ui/separator"
 import { getCollectionTheme, CollectionTheme } from "@/lib/collection-theme"
 import {
   fetchProject,
+  fetchMerkleProof,
   checkAllowlist,
   type Project,
   type AllowlistResult,
 } from "@/lib/api"
-import { TAO_NFT_ABI, getContractAddress, getDeployedChainId, getPhaseAllowlist, type OnChainPhase } from "@/lib/contracts"
-import { getMerkleProof, isInAllowlist } from "@/lib/merkle"
+import { TAO_NFT_ABI, getContractAddress, getDeployedChainId, type OnChainPhase } from "@/lib/contracts"
 import {
   useAccount,
   useChainId,
@@ -201,23 +201,31 @@ export function ProjectDetail() {
     query: { enabled: !!connectedWallet },
   })
 
-  // ── Allowlist / merkle ─────────────────────────────────────────────────────
+  // ── Allowlist / merkle — fetched from backend API (dynamic, no redeploy needed) ──
 
   const isAllowlistPhase = !!activeOnChainPhase && activeOnChainPhase.merkleRoot !== zeroHash
-  const phaseAllowlist = useMemo(
-    () => getPhaseAllowlist(slug, selectedPhaseIndex ?? 0),
-    [slug, selectedPhaseIndex]
-  )
 
-  const walletOnAllowlist = useMemo(() => {
-    if (!isAllowlistPhase || !connectedWallet || !activeOnChainPhase) return true
-    return isInAllowlist(phaseAllowlist, connectedWallet, activeOnChainPhase.merkleRoot, 0)
-  }, [isAllowlistPhase, connectedWallet, activeOnChainPhase, phaseAllowlist])
+  const [proofData, setProofData] = useState<{
+    proof: `0x${string}`[]
+    allowed: boolean
+    maxAllowance: number
+  } | null>(null)
 
-  const merkleProof = useMemo(() => {
-    if (!isAllowlistPhase || !connectedWallet) return [] as `0x${string}`[]
-    return getMerkleProof(phaseAllowlist, connectedWallet, 0)
-  }, [isAllowlistPhase, connectedWallet, phaseAllowlist])
+  useEffect(() => {
+    if (!isAllowlistPhase || !connectedWallet || selectedPhaseIndex === null) {
+      setProofData(null)
+      return
+    }
+    fetchMerkleProof(slug, selectedPhaseIndex, connectedWallet).then(data => {
+      setProofData({ ...data, proof: data.proof as `0x${string}`[] })
+    }).catch(() => {
+      setProofData({ proof: [], allowed: false, maxAllowance: 0 })
+    })
+  }, [isAllowlistPhase, connectedWallet, selectedPhaseIndex, slug])
+
+  const walletOnAllowlist = isAllowlistPhase ? (proofData?.allowed ?? false) : true
+  const merkleProof       = (proofData?.proof ?? []) as `0x${string}`[]
+  const wlMaxAllowance    = proofData?.maxAllowance ?? 0
 
   // ── Per-wallet mint limit ──────────────────────────────────────────────────
 
@@ -285,7 +293,7 @@ export function ProjectDetail() {
         BigInt(selectedPhaseIndex),
         BigInt(mintQuantity),
         merkleProof,
-        0n, // maxAllowance: 0 = use phase default
+        BigInt(wlMaxAllowance), // per-wallet allowance from backend
       ],
       value: totalCost,
     })
