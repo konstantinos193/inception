@@ -1,4 +1,4 @@
-/**
+ /**
  * merkle.ts  (client-side)
  *
  * Generates and verifies Merkle proofs for TaoNFT allowlist phases.

@@ -105,6 +105,19 @@ export function getContractAddress(slug: string): `0x${string}` | null {
   }
 }
 
+/** Returns the chain ID that the contract was deployed on, or null. */
+export function getDeployedChainId(slug: string): number | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const data = require("./deployed.json");
+    const col = (data.collections ?? []).find((c: { slug: string }) => c.slug === slug);
+    if (!col) return null;
+    return data.chainId ? Number(data.chainId) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Returns the full collection record from deployed.json for a slug. */
 export function getDeployedCollection(slug: string) {
   try {

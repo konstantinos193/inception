@@ -22,7 +22,7 @@ import {
   type Project,
   type AllowlistResult,
 } from "@/lib/api"
-import { TAO_NFT_ABI, getContractAddress, getPhaseAllowlist, type OnChainPhase } from "@/lib/contracts"
+import { TAO_NFT_ABI, getContractAddress, getDeployedChainId, getPhaseAllowlist, type OnChainPhase } from "@/lib/contracts"
 import { getMerkleProof, isInAllowlist } from "@/lib/merkle"
 import {
   useAccount,
@@ -103,9 +103,10 @@ export function ProjectDetail() {
   const nativeDecimals = (chainId === 964 || chainId === 945) ? 9 : 18
   const fmt = (wei: bigint) => formatUnits(wei, nativeDecimals)
 
-  // Contract address for this slug (null if not yet deployed)
+  // Contract address for this slug — only valid if deployed on the connected chain
   const contractAddress = useMemo(() => getContractAddress(slug), [slug])
-  const hasContract = !!contractAddress
+  const deployedChainId = useMemo(() => getDeployedChainId(slug), [slug])
+  const hasContract = !!contractAddress && deployedChainId === chainId
 
   // ── Fetch off-chain project ────────────────────────────────────────────────
   const loadProject = useCallback(async () => {
@@ -473,8 +474,8 @@ export function ProjectDetail() {
     if (!hasContract) {
       return (
         <div className="space-y-2 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
-          <p className="text-yellow-400 text-sm font-medium">Contract not yet deployed</p>
-          <p className="text-gray-400 text-xs">Run <code className="bg-white/10 px-1 rounded">pnpm run deploy:local</code> in the contracts folder.</p>
+          <p className="text-yellow-400 text-sm font-medium">Contract not yet deployed to this network</p>
+          <p className="text-gray-400 text-xs">Run <code className="bg-white/10 px-1 rounded">pnpm deploy:sepolia</code> in the contracts folder, then connect to Sepolia.</p>
         </div>
       )
     }

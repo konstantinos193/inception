@@ -11,9 +11,9 @@ export const metadata = {
   title: "Elevate",
   description: "A Pre-Sale Ordinals & Runes Launchpad",
   icons: {
-    icon: '/logo.png',
-    shortcut: '/logo.png',
-    apple: '/logo.png',
+    icon: '/logo.webp',
+    shortcut: '/logo.webp',
+    apple: '/logo.webp',
   },
   openGraph: {
     type: 'website',
