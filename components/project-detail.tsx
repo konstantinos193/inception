@@ -158,6 +158,12 @@ export function ProjectDetail() {
     query: { enabled: hasContract, refetchInterval: 10_000 },
   })
 
+  const { data: onChainTransfersLocked } = useReadContract({
+    ...contractCfg,
+    functionName: "transfersLocked",
+    query: { enabled: hasContract },
+  })
+
   // ── Selected phase (user-chosen when multiple are active) ──────────────────
   const [selectedPhaseIndex, setSelectedPhaseIndex] = useState<number | null>(null)
 
@@ -727,9 +733,6 @@ export function ProjectDetail() {
                 {project.status === "live" && <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse inline-block" />}
                 {statusText}
               </Badge>
-              {hasContract && (
-                <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs px-3 py-1">On-Chain</Badge>
-              )}
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white">{project.name}</h1>
             <p className="text-sm text-gray-400 mt-0.5">{project.tagline}</p>
@@ -748,60 +751,35 @@ export function ProjectDetail() {
               <p className="text-gray-300 leading-relaxed">{project.description}</p>
             </div>
 
-            {/* Contract info */}
-            {hasContract && contractAddress && (
-              <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-4`}>
-                <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
-                  <Layers className={`w-4 h-4 ${theme.textAccent}`} />
-                  On-Chain Contract
+            {/* Social links — only shown if at least one link exists */}
+            {(project.twitter || project.discord || project.website) && (
+              <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
+                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                  <Globe className={`w-5 h-5 ${theme.textAccent}`} />
+                  Community
                 </h3>
-                <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400">Address</span>
-                    <span className="text-white font-mono">{contractAddress.slice(0, 10)}…{contractAddress.slice(-8)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400">Minted</span>
-                    <span className="text-white">{Number(onChainTotalMinted ?? 0).toLocaleString()} / {project.supply.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-400">Standard</span>
-                    <span className="text-white">ERC-721A + ERC-2981</span>
-                  </div>
+                <div className="flex flex-wrap gap-3">
+                  {project.twitter && (
+                    <a href={project.twitter} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
+                      <MessageCircle className="w-4 h-4" />Twitter
+                    </a>
+                  )}
+                  {project.discord && (
+                    <a href={project.discord} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
+                      <Users className="w-4 h-4" />Discord
+                    </a>
+                  )}
+                  {project.website && (
+                    <a href={project.website} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
+                      <Globe className="w-4 h-4" />Website
+                    </a>
+                  )}
                 </div>
               </div>
             )}
-
-            {/* Social links */}
-            <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
-              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <Globe className={`w-5 h-5 ${theme.textAccent}`} />
-                Community
-              </h3>
-              <div className="flex flex-wrap gap-3">
-                {project.twitter ? (
-                  <a href={project.twitter} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
-                    <MessageCircle className="w-4 h-4" />Twitter
-                  </a>
-                ) : null}
-                {project.discord ? (
-                  <a href={project.discord} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
-                    <Users className="w-4 h-4" />Discord
-                  </a>
-                ) : null}
-                {project.website ? (
-                  <a href={project.website} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
-                    <Globe className="w-4 h-4" />Website
-                  </a>
-                ) : null}
-                {!project.twitter && !project.discord && !project.website && (
-                  <p className="text-sm text-gray-500">No social links added yet.</p>
-                )}
-              </div>
-            </div>
 
             {/* NFT Gallery */}
             {project.sampleNFTs.length > 0 && (
@@ -946,6 +924,101 @@ export function ProjectDetail() {
             )}
           </div>
         </div>
+
+        {/* ─── On-Chain Contract (full width, bottom) ─── */}
+        {hasContract && contractAddress && (() => {
+          const explorerBase =
+            contractInfo.chainId === 11155111 ? "https://sepolia.etherscan.io" :
+            contractInfo.chainId === 964       ? "https://taostats.io"         :
+            contractInfo.chainId === 945       ? "https://test.taostats.io"    : null
+
+          const contractUrl = explorerBase ? `${explorerBase}/address/${contractAddress}` : null
+          const totalPhases = (onChainPhases as OnChainPhase[] | undefined)?.length ?? 0
+          const transfersLocked = onChainTransfersLocked as boolean | undefined
+
+          return (
+            <div className={`mt-8 rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Layers className={`w-5 h-5 ${theme.textAccent}`} />
+                  On-Chain Contract
+                </h3>
+                {contractUrl && (
+                  <a href={contractUrl} target="_blank" rel="noopener noreferrer"
+                    className={`flex items-center gap-1.5 text-xs ${theme.textAccent} ${theme.textAccentHover} transition-colors`}>
+                    View on Explorer <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+                {/* Address */}
+                <div className="col-span-2 sm:col-span-3 lg:col-span-2 rounded-xl bg-white/5 border border-white/10 p-3">
+                  <p className="text-[10px] text-gray-500 mb-1">Contract Address</p>
+                  {contractUrl ? (
+                    <a href={contractUrl} target="_blank" rel="noopener noreferrer"
+                      className={`font-mono text-xs text-white hover:${theme.textAccent} transition-colors flex items-center gap-1 break-all`}>
+                      {contractAddress.slice(0, 6)}…{contractAddress.slice(-4)}
+                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                    </a>
+                  ) : (
+                    <span className="font-mono text-xs text-white">{contractAddress.slice(0, 6)}…{contractAddress.slice(-4)}</span>
+                  )}
+                </div>
+
+                {/* Minted */}
+                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                  <p className="text-[10px] text-gray-500 mb-1">Minted</p>
+                  <p className="text-sm font-bold text-white">
+                    {Number(onChainTotalMinted ?? 0).toLocaleString()}
+                    <span className="text-gray-500 font-normal"> / {project.supply.toLocaleString()}</span>
+                  </p>
+                </div>
+
+                {/* Phases */}
+                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                  <p className="text-[10px] text-gray-500 mb-1">Phases</p>
+                  <p className="text-sm font-bold text-white">{totalPhases}</p>
+                </div>
+
+                {/* Transfer status */}
+                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                  <p className="text-[10px] text-gray-500 mb-1">Transfers</p>
+                  <p className={`text-sm font-bold flex items-center gap-1 ${transfersLocked ? "text-yellow-400" : "text-green-400"}`}>
+                    {transfersLocked === undefined ? "—" : transfersLocked
+                      ? <><Lock className="w-3 h-3" />Locked</>
+                      : <><Unlock className="w-3 h-3" />Open</>}
+                  </p>
+                </div>
+
+                {/* Standard */}
+                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                  <p className="text-[10px] text-gray-500 mb-1">Standard</p>
+                  <p className="text-xs font-bold text-white">ERC-721A</p>
+                  <p className="text-[10px] text-gray-500">+ ERC-2981</p>
+                </div>
+              </div>
+
+              {/* Quick links row */}
+              {explorerBase && (
+                <div className="flex flex-wrap gap-2 mt-4">
+                  <a href={`${explorerBase}/address/${contractAddress}#code`} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
+                    <BarChart3 className="w-3 h-3" />Contract Code
+                  </a>
+                  <a href={`${explorerBase}/address/${contractAddress}#events`} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
+                    <TrendingUp className="w-3 h-3" />Events Log
+                  </a>
+                  <a href={`${explorerBase}/address/${contractAddress}#internaltx`} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
+                    <Zap className="w-3 h-3" />Transactions
+                  </a>
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
