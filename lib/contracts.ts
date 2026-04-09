@@ -9,61 +9,434 @@
 
 export const TAO_NFT_ABI = [
   // ── Read ──────────────────────────────────────────────────────────────────
-  "function name() view returns (string)",
-  "function symbol() view returns (string)",
-  "function maxSupply() view returns (uint256)",
-  "function totalMinted() view returns (uint256)",
-  "function reservedSupply() view returns (uint256)",
-  "function reservedMinted() view returns (uint256)",
-  "function globalMaxPerWallet() view returns (uint256)",
-  "function revealed() view returns (bool)",
-  "function metadataFrozen() view returns (bool)",
-  "function baseTokenURI() view returns (string)",
-  "function unrevealedURI() view returns (string)",
-  "function platformFeeRecipient() view returns (address)",
-  "function platformFeeBps() view returns (uint96)",
-  "function paused() view returns (bool)",
-  "function transfersLocked() view returns (bool)",
-  "function mintRecipient() view returns (address)",
+  {
+    type: "function",
+    name: "name",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "string" }]
+  },
+  {
+    type: "function",
+    name: "symbol",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "string" }]
+  },
+  {
+    type: "function",
+    name: "maxSupply",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "totalMinted",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "reservedSupply",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "reservedMinted",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "globalMaxPerWallet",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "revealed",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "bool" }]
+  },
+  {
+    type: "function",
+    name: "metadataFrozen",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "bool" }]
+  },
+  {
+    type: "function",
+    name: "baseTokenURI",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "string" }]
+  },
+  {
+    type: "function",
+    name: "unrevealedURI",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "string" }]
+  },
+  {
+    type: "function",
+    name: "platformFeeRecipient",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }]
+  },
+  {
+    type: "function",
+    name: "platformFeeBps",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint96" }]
+  },
+  {
+    type: "function",
+    name: "paused",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "bool" }]
+  },
+  {
+    type: "function",
+    name: "transfersLocked",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "bool" }]
+  },
+  {
+    type: "function",
+    name: "mintRecipient",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }]
+  },
 
-  "function totalPhases() view returns (uint256)",
-  "function getPhase(uint256 index) view returns (tuple(string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, uint32 minted, address signer, bool paused))",
-  "function getAllPhases() view returns (tuple(string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, uint32 minted, address signer, bool paused)[])",
-  "function getActivePhaseIndex() view returns (int256)",
-  "function mintableInPhase(uint256 phaseIndex) view returns (uint256)",
-  "function phaseMints(address wallet, uint256 phaseIndex) view returns (uint256)",
-  "function totalMints(address wallet) view returns (uint256)",
-  "function walletPhaseMintsOf(address wallet, uint256 phaseIndex) view returns (uint256)",
+  {
+    type: "function",
+    name: "totalPhases",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "getPhase",
+    stateMutability: "view",
+    inputs: [{ name: "index", type: "uint256" }],
+    outputs: [{
+      type: "tuple",
+      components: [
+        { name: "name", type: "string" },
+        { name: "startTime", type: "uint64" },
+        { name: "endTime", type: "uint64" },
+        { name: "price", type: "uint256" },
+        { name: "maxPerWallet", type: "uint32" },
+        { name: "maxSupply", type: "uint32" },
+        { name: "minted", type: "uint32" },
+        { name: "signer", type: "address" },
+        { name: "paused", type: "bool" }
+      ]
+    }]
+  },
+  {
+    type: "function",
+    name: "getAllPhases",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{
+      type: "tuple[]",
+      components: [
+        { name: "name", type: "string" },
+        { name: "startTime", type: "uint64" },
+        { name: "endTime", type: "uint64" },
+        { name: "price", type: "uint256" },
+        { name: "maxPerWallet", type: "uint32" },
+        { name: "maxSupply", type: "uint32" },
+        { name: "minted", type: "uint32" },
+        { name: "signer", type: "address" },
+        { name: "paused", type: "bool" }
+      ]
+    }]
+  },
+  {
+    type: "function",
+    name: "getActivePhaseIndex",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "int256" }]
+  },
+  {
+    type: "function",
+    name: "mintableInPhase",
+    stateMutability: "view",
+    inputs: [{ name: "phaseIndex", type: "uint256" }],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "phaseMints",
+    stateMutability: "view",
+    inputs: [
+      { name: "wallet", type: "address" },
+      { name: "phaseIndex", type: "uint256" }
+    ],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "totalMints",
+    stateMutability: "view",
+    inputs: [{ name: "wallet", type: "address" }],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "walletPhaseMintsOf",
+    stateMutability: "view",
+    inputs: [
+      { name: "wallet", type: "address" },
+      { name: "phaseIndex", type: "uint256" }
+    ],
+    outputs: [{ type: "uint256" }]
+  },
 
-  "function tokenURI(uint256 tokenId) view returns (string)",
-  "function ownerOf(uint256 tokenId) view returns (address)",
-  "function balanceOf(address owner) view returns (uint256)",
-  "function royaltyInfo(uint256 tokenId, uint256 salePrice) view returns (address receiver, uint256 royaltyAmount)",
-  "function supportsInterface(bytes4 interfaceId) view returns (bool)",
+  {
+    type: "function",
+    name: "tokenURI",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "string" }]
+  },
+  {
+    type: "function",
+    name: "ownerOf",
+    stateMutability: "view",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [{ type: "address" }]
+  },
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "royaltyInfo",
+    stateMutability: "view",
+    inputs: [
+      { name: "tokenId", type: "uint256" },
+      { name: "salePrice", type: "uint256" }
+    ],
+    outputs: [
+      { name: "receiver", type: "address" },
+      { name: "royaltyAmount", type: "uint256" }
+    ]
+  },
+  {
+    type: "function",
+    name: "supportsInterface",
+    stateMutability: "view",
+    inputs: [{ name: "interfaceId", type: "bytes4" }],
+    outputs: [{ type: "bool" }]
+  },
 
-  // ── Write (public) ────────────────────────────────────────────────────────
-  "function mint(uint256 phaseIndex, uint256 quantity, bytes signature, uint256 maxAllowance) payable",
+  // Write (public)
+  {
+    type: "function",
+    name: "mint",
+    stateMutability: "payable",
+    inputs: [
+      { name: "phaseIndex", type: "uint256" },
+      { name: "quantity", type: "uint256" },
+      { name: "signature", type: "bytes" },
+      { name: "maxAllowance", type: "uint256" }
+    ],
+    outputs: []
+  },
 
-  // ── Write (owner) ─────────────────────────────────────────────────────────
-  "function addPhase(string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, address signer)",
-  "function updatePhase(uint256 phaseIndex, string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, address signer)",
-  "function setPhasePaused(uint256 phaseIndex, bool paused)",
-  "function setPhaseSignerAddress(uint256 phaseIndex, address signer)",
-  "function reveal(string baseURI)",
-  "function setBaseURI(string baseURI)",
-  "function setUnrevealedURI(string uri)",
-  "function freezeMetadata()",
-  "function setDefaultRoyalty(address receiver, uint96 feeNumerator)",
-  "function setTokenRoyalty(uint256 tokenId, address receiver, uint96 feeNumerator)",
-  "function deleteDefaultRoyalty()",
-  "function ownerMint(address to, uint256 quantity)",
-  "function ownerMintBatch(address[] recipients, uint256[] quantities)",
-  "function pause()",
-  "function unpause()",
-  "function unlockTransfers()",
-  "function setMintRecipient(address recipient)",
-  "function setGlobalMaxPerWallet(uint256 max)",
-  "function updateReservedSupply(uint256 reserved)",
+  // Write (owner)
+  {
+    type: "function",
+    name: "addPhase",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "name", type: "string" },
+      { name: "startTime", type: "uint64" },
+      { name: "endTime", type: "uint64" },
+      { name: "price", type: "uint256" },
+      { name: "maxPerWallet", type: "uint32" },
+      { name: "maxSupply", type: "uint32" },
+      { name: "signer", type: "address" }
+    ],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "updatePhase",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "phaseIndex", type: "uint256" },
+      { name: "name", type: "string" },
+      { name: "startTime", type: "uint64" },
+      { name: "endTime", type: "uint64" },
+      { name: "price", type: "uint256" },
+      { name: "maxPerWallet", type: "uint32" },
+      { name: "maxSupply", type: "uint32" },
+      { name: "signer", type: "address" }
+    ],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "setPhasePaused",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "phaseIndex", type: "uint256" },
+      { name: "paused", type: "bool" }
+    ],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "setPhaseSignerAddress",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "phaseIndex", type: "uint256" },
+      { name: "signer", type: "address" }
+    ],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "setGlobalMaxPerWallet",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "max", type: "uint256" }],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "updateReservedSupply",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "reserved", type: "uint256" }],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "pause",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "unpause",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "unlockTransfers",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "setMintRecipient",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "recipient", type: "address" }],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "reveal",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "newBaseURI", type: "string" }],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "setBaseURI",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "newBaseURI", type: "string" }],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "setUnrevealedURI",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "uri", type: "string" }],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "freezeMetadata",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "setDefaultRoyalty",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "receiver", type: "address" },
+      { name: "feeNumerator", type: "uint96" }
+    ],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "setTokenRoyalty",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "tokenId", type: "uint256" },
+      { name: "receiver", type: "address" },
+      { name: "feeNumerator", type: "uint96" }
+    ],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "deleteDefaultRoyalty",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "ownerMint",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "quantity", type: "uint256" }
+    ],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "ownerMintBatch",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "recipients", type: "address[]" },
+      { name: "quantities", type: "uint256[]" }
+    ],
+    outputs: []
+  },
 
   // ── Events ────────────────────────────────────────────────────────────────
   "event Minted(address indexed to, uint256 indexed phaseIndex, uint256 quantity, uint256 totalCost, uint256 firstTokenId)",
