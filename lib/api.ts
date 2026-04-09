@@ -258,7 +258,7 @@ export async function recordOnChainMint(params: {
   priceEach: number;
   tokenIds?: number[];
 }): Promise<void> {
-  await fetch(`${API_URL}/api/contracts/event/mint`, {
+  await fetch(`${API_URL}/api/onchain-mint`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
