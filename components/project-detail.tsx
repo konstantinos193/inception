@@ -23,13 +23,11 @@ import {
   fetchOnChainStatus,
   checkAllowlist,
   fetchRecentlyMinted,
-  confirmTransactionViaBackend,
-  getTransactionStatus,
+  submitMintForConfirmation,
   type Project,
   type AllowlistResult,
   type OnChainStatus,
   type SampleNFT,
-  type TransactionConfirmationResult,
 } from "@/lib/api"
 import { TAO_NFT_ABI, type OnChainPhase } from "@/lib/contracts"
 import {
@@ -37,14 +35,11 @@ import {
   useChainId,
   useReadContract,
   useWriteContract,
-  useWaitForTransactionReceipt,
   useBalance,
   usePublicClient,
 } from "wagmi"
-import { waitForTransactionReceipt } from "viem/actions"
 import { useAppKit } from "@reown/appkit/react"
 import { formatUnits, parseUnits, zeroAddress } from "viem"
-import { recordOnChainMint } from "@/lib/api"
 
 // ─── Rarity Badge Colors ───────────────────────────────────────────
 function getRarityColor(rarity: string) {
@@ -124,8 +119,6 @@ export function ProjectDetail() {
   const { open: openWalletModal } = useAppKit()
   const publicClient = usePublicClient()
 
-  // Manual confirmation state for viem approach
-  const [isConfirming, setIsConfirming] = useState(false)
   const [currentTxHash, setCurrentTxHash] = useState<string | null>(null)
 
   // Real recently minted NFTs
@@ -474,15 +467,18 @@ export function ProjectDetail() {
     resetWrite()
 
     // ── Pre-mint validation (mirrors TaoNFT.sol mint() checks) ────────────
-    // Refetch wallet data directly from chain to ensure we have the latest state
-    // (React state may not have updated yet, so use returned data from refetch)
+    // Try to refetch wallet data, but never block more than 3s (RPC may be slow/broken)
     let freshPhaseMinted = alreadyMintedThisPhase
     let freshTotalMinted = alreadyMintedTotal
     try {
-      const [phaseResult, totalResult] = await Promise.all([refetchPhaseMinted(), refetchTotalMinted()])
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000))
+      const [phaseResult, totalResult] = await Promise.race([
+        Promise.all([refetchPhaseMinted(), refetchTotalMinted()]),
+        timeout.then(() => { throw new Error("timeout") }),
+      ])
       if (phaseResult.data != null) freshPhaseMinted = Number(phaseResult.data)
       if (totalResult.data != null) freshTotalMinted = Number(totalResult.data)
-    } catch { /* proceed with cached data if refetch fails */ }
+    } catch { /* proceed with cached data if refetch fails or times out */ }
 
     // Phase active check
     const now = Math.floor(Date.now() / 1000)
@@ -555,210 +551,45 @@ export function ProjectDetail() {
         gas: gasLimit,
       })
 
-      // Show hash immediately
+      // Transaction signed and submitted — show success immediately
       console.log("Transaction submitted:", hash)
       setCurrentTxHash(hash)
 
-      // Use backend for fast and reliable transaction confirmation
-      setIsConfirming(true)
+      resetWrite()
+      setMintSuccess({ 
+        txHash: hash, 
+        quantity: mintQuantity,
+        phaseName: activeOnChainPhase.name,
+        priceEach: Number(fmt(activeOnChainPhase.price)),
+        totalCost: Number(fmt(activeOnChainPhase.price * BigInt(mintQuantity)))
+      })
+      setMintQuantity(1)
 
-      try {
-        const confirmationResult = await confirmTransactionViaBackend({
-          txHash: hash,
-          chainId: chainId,
-          confirmations: 1,
-          timeout: 45000, // 45 seconds for faster confirmation
-        })
+      // Fire-and-forget: backend confirms tx + records mint event in background
+      submitMintForConfirmation({
+        txHash: hash,
+        chainId,
+        slug,
+        wallet: connectedWallet ?? "",
+        quantity: mintQuantity,
+        phaseIndex: selectedPhaseIndex,
+        phaseName: activeOnChainPhase.name,
+        priceEach: Number(fmt(activeOnChainPhase.price)),
+      })
 
-        if (confirmationResult.confirmed && confirmationResult.receipt.status === 'success') {
-          // Success path - backend confirmed the transaction
-          resetWrite()
-          setMintSuccess({ 
-            txHash: hash, 
-            quantity: mintQuantity,
-            phaseName: activeOnChainPhase.name,
-            priceEach: Number(fmt(activeOnChainPhase.price)),
-            totalCost: Number(fmt(activeOnChainPhase.price * BigInt(mintQuantity)))
-          })
-
-          loadOnChainStatus()
-          loadProject()
-          refetchPhaseMinted()
-          refetchTotalMinted()
-          
-          // Record the mint with token IDs extracted by the backend
-          recordOnChainMint({
-            slug,
-            wallet: connectedWallet ?? "",
-            txHash: hash,
-            quantity: mintQuantity,
-            phaseIndex: selectedPhaseIndex,
-            phaseName: activeOnChainPhase.name,
-            priceEach: Number(fmt(activeOnChainPhase.price)),
-            tokenIds: confirmationResult.tokenIds,
-          })
-          
-          setMintQuantity(1)
-          setCurrentTxHash(null)
-        } else {
-          setMintError("Transaction failed or reverted")
-          setCurrentTxHash(null)
-        }
-      } catch (confirmationError: any) {
-        console.error("Backend confirmation failed:", confirmationError)
-        // Fallback to frontend confirmation if backend fails
-        try {
-          const receipt = await waitForTransactionReceipt(publicClient, {
-            hash,
-            confirmations: 1,
-            pollingInterval: 2000,
-            timeout: 60000,
-            retryCount: 5,
-            retryDelay: 1500,
-          })
-
-          if (receipt.status === 'success') {
-            resetWrite()
-            setMintSuccess({ 
-              txHash: hash, 
-              quantity: mintQuantity,
-              phaseName: activeOnChainPhase.name,
-              priceEach: Number(fmt(activeOnChainPhase.price)),
-              totalCost: Number(fmt(activeOnChainPhase.price * BigInt(mintQuantity)))
-            })
-
-            loadOnChainStatus()
-            loadProject()
-            refetchPhaseMinted()
-            refetchTotalMinted()
-            recordOnChainMint({
-              slug,
-              wallet: connectedWallet ?? "",
-              txHash: hash,
-              quantity: mintQuantity,
-              phaseIndex: selectedPhaseIndex,
-              phaseName: activeOnChainPhase.name,
-              priceEach: Number(fmt(activeOnChainPhase.price)),
-            })
-            setMintQuantity(1)
-            setCurrentTxHash(null)
-          } else {
-            setMintError("Transaction reverted")
-            setCurrentTxHash(null)
-          }
-        } catch (fallbackError) {
-          console.error("Fallback confirmation also failed:", fallbackError)
-          setMintError("Transaction confirmation failed. Please check your transaction.")
-          setCurrentTxHash(null)
-        }
-      }
+      // Refresh wallet data after a short delay (give chain time to include tx)
+      setTimeout(() => {
+        refetchPhaseMinted()
+        refetchTotalMinted()
+        loadOnChainStatus()
+        loadProject()
+      }, 5000)
     } catch (error: any) {
       console.error("Mint error:", error)
       setMintError(error?.shortMessage || error?.message || "Mint failed")
-    } finally {
-      setIsConfirming(false)
     }
   }
 
-  // Retry confirmation function using backend
-  const retryConfirmation = async () => {
-    if (!currentTxHash) return
-    try {
-      setIsConfirming(true)
-      
-      // Try backend confirmation first for faster results
-      try {
-        const confirmationResult = await confirmTransactionViaBackend({
-          txHash: currentTxHash,
-          chainId: chainId,
-          confirmations: 1,
-          timeout: 30000, // Shorter timeout for retry
-        })
-
-        if (confirmationResult.confirmed && confirmationResult.receipt.status === 'success' && activeOnChainPhase && selectedPhaseIndex !== null) {
-          resetWrite()
-          setMintSuccess({ 
-            txHash: currentTxHash, 
-            quantity: mintQuantity,
-            phaseName: activeOnChainPhase.name,
-            priceEach: Number(fmt(activeOnChainPhase.price)),
-            totalCost: Number(fmt(activeOnChainPhase.price * BigInt(mintQuantity)))
-          })
-          setMintError(null)
-          
-          loadOnChainStatus()
-          loadProject()
-          refetchPhaseMinted()
-          refetchTotalMinted()
-          recordOnChainMint({
-            slug,
-            wallet: connectedWallet ?? "",
-            txHash: currentTxHash,
-            quantity: mintQuantity,
-            phaseIndex: selectedPhaseIndex,
-            phaseName: activeOnChainPhase.name,
-            priceEach: Number(fmt(activeOnChainPhase.price)),
-            tokenIds: confirmationResult.tokenIds,
-          })
-          setMintQuantity(1)
-          setCurrentTxHash(null)
-          return
-        }
-      } catch (backendError) {
-        console.log("Backend retry failed, falling back to frontend:", backendError)
-      }
-
-      // Fallback to frontend confirmation
-      if (publicClient) {
-        const receipt = await waitForTransactionReceipt(publicClient, { 
-          hash: currentTxHash as `0x${string}`, 
-          confirmations: 1,
-          pollingInterval: 2000,
-          timeout: 30000,
-          retryCount: 3,
-          retryDelay: 1500,
-        })
-        
-        if (receipt.status === 'success' && activeOnChainPhase && selectedPhaseIndex !== null) {
-          resetWrite()
-          setMintSuccess({ 
-            txHash: currentTxHash, 
-            quantity: mintQuantity,
-            phaseName: activeOnChainPhase.name,
-            priceEach: Number(fmt(activeOnChainPhase.price)),
-            totalCost: Number(fmt(activeOnChainPhase.price * BigInt(mintQuantity)))
-          })
-          setMintError(null)
-          
-          loadOnChainStatus()
-          loadProject()
-          refetchPhaseMinted()
-          refetchTotalMinted()
-          recordOnChainMint({
-            slug,
-            wallet: connectedWallet ?? "",
-            txHash: currentTxHash,
-            quantity: mintQuantity,
-            phaseIndex: selectedPhaseIndex,
-            phaseName: activeOnChainPhase.name,
-            priceEach: Number(fmt(activeOnChainPhase.price)),
-          })
-          setMintQuantity(1)
-          setCurrentTxHash(null)
-        } else {
-          setMintError("Transaction failed or reverted")
-          setCurrentTxHash(null)
-        }
-      } else {
-        setMintError("No connection available for confirmation")
-      }
-    } catch (e) {
-      console.log("Still not confirmed", e)
-      setMintError("Transaction still confirming. Please wait a bit longer.")
-    } finally {
-      setIsConfirming(false)
-    }
-  }
 
   // ── Allowlist checker (legacy API) ────────────────────────────────────────
   const handleCheckAllowlist = async () => {
@@ -788,7 +619,7 @@ export function ProjectDetail() {
 
   const displayCurrency = project?.currency ?? "TAO"
 
-  const isMinting = isWritePending || isConfirming
+  const isMinting = isWritePending
   const canMint = hasContract
     ? (isConnected
         && selectedPhaseIndex !== null
@@ -1157,24 +988,6 @@ export function ProjectDetail() {
           )}
         </Button>
 
-        {currentTxHash && !mintSuccess && (
-          <div className="space-y-2">
-            <p className="text-[10px] text-gray-500 text-center truncate">
-              TX: {currentTxHash.slice(0, 10)}...{currentTxHash.slice(-8)}
-            </p>
-            {isConfirming && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={retryConfirmation}
-                className="w-full text-xs border-white/20 hover:bg-white/10 text-white"
-              >
-                <Loader2 className="w-3 h-3 mr-1" />
-                Retry Confirmation
-              </Button>
-            )}
-          </div>
-        )}
       </div>
     )
   }

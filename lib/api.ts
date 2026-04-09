@@ -313,6 +313,31 @@ export async function confirmTransactionViaBackend(params: {
   }
 }
 
+// Fire-and-forget: submit txHash + mint metadata to backend for background confirmation
+// Returns immediately — backend confirms and records the mint asynchronously
+export async function submitMintForConfirmation(params: {
+  txHash: string;
+  chainId: number;
+  slug: string;
+  wallet: string;
+  quantity: number;
+  phaseIndex: number;
+  phaseName: string;
+  priceEach: number;
+}): Promise<{ success: boolean; status: string }> {
+  try {
+    const res = await fetch(`${API_URL}/api/transaction-confirmation/submit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    return await res.json();
+  } catch {
+    // Fire-and-forget — don't block the UI even if this fails
+    return { success: false, status: "submit_failed" };
+  }
+}
+
 export async function getTransactionStatus(params: {
   txHash: string;
   chainId: number;
