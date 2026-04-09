@@ -33,6 +33,23 @@ export default function CollectionsPage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Real-time updates for all projects
+  useEffect(() => {
+    const updateProjects = async () => {
+      try {
+        const updatedProjects = await fetchProjects()
+        setProjects(updatedProjects)
+      } catch (error) {
+        console.error('Failed to update projects:', error)
+      }
+    }
+
+    // Set up polling for real-time updates
+    const interval = setInterval(updateProjects, 5000) // 5 seconds
+
+    return () => clearInterval(interval)
+  }, [])
+
   const filtered = projects.filter(p => selectedStatus === "all" || p.status === selectedStatus)
 
   const tabs = [

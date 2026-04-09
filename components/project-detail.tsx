@@ -22,9 +22,11 @@ import {
   fetchSignature,
   fetchOnChainStatus,
   checkAllowlist,
+  fetchRecentlyMinted,
   type Project,
   type AllowlistResult,
   type OnChainStatus,
+  type SampleNFT,
 } from "@/lib/api"
 import { TAO_NFT_ABI, type OnChainPhase } from "@/lib/contracts"
 import {
@@ -110,6 +112,24 @@ export function ProjectDetail() {
     timestamp: number;
   } | null>(null)
 
+  // Real recently minted NFTs
+  const [recentlyMinted, setRecentlyMinted] = useState<SampleNFT[]>([])
+  const [loadingNFTs, setLoadingNFTs] = useState(false)
+
+  // Load recently minted NFTs
+  const loadRecentlyMinted = useCallback(async () => {
+    if (!slug) return
+    try {
+      setLoadingNFTs(true)
+      const nfts = await fetchRecentlyMinted(slug)
+      setRecentlyMinted(nfts)
+    } catch (error) {
+      console.error('Failed to load recently minted NFTs:', error)
+    } finally {
+      setLoadingNFTs(false)
+    }
+  }, [slug])
+
   // Show live mint notification for other users' mints
   const showMintNotification = useCallback((mintData: any) => {
     setLiveMintNotification({
@@ -189,6 +209,17 @@ export function ProjectDetail() {
     return () => clearInterval(id)
   }, [project?.status, loadProject])
 
+  // Load recently minted NFTs on mount and refresh periodically
+  useEffect(() => {
+    loadRecentlyMinted()
+    
+    // Refresh recently minted NFTs every 10 seconds for live projects
+    if (project?.status === "live") {
+      const id = setInterval(loadRecentlyMinted, 10_000)
+      return () => clearInterval(id)
+    }
+  }, [slug, project?.status, loadRecentlyMinted])
+
   // WebSocket for real-time updates (moved after all dependencies are defined)
   const { isConnected: isWsConnected } = useWebSocket({
     slug,
@@ -209,7 +240,8 @@ export function ProjectDetail() {
       // Refresh data immediately for real-time updates
       loadProject()
       loadOnChainStatus()
-    }, [loadProject, loadOnChainStatus, connectedWallet]),
+      loadRecentlyMinted()
+    }, [loadProject, loadOnChainStatus, loadRecentlyMinted, connectedWallet]),
     onConnect: useCallback(() => {
       console.log(`WebSocket connected for real-time updates on ${slug}`)
     }, [slug]),
@@ -890,11 +922,11 @@ export function ProjectDetail() {
             )}
 
             {/* NFT Gallery */}
-            {project.sampleNFTs.length > 0 && (
+            {recentlyMinted.length > 0 && (
               <div className="space-y-4">
                 <h3 className="text-2xl font-bold text-white">Recently Minted</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {visibleNFTs.map((nft) => (
+                  {recentlyMinted.slice(0, showAllNFTs ? recentlyMinted.length : 6).map((nft) => (
                     <div key={nft._id} className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
                       <div className="relative aspect-square">
                         <Image src={nft.image} alt={nft.name} fill className="object-cover" />
@@ -909,12 +941,41 @@ export function ProjectDetail() {
                     </div>
                   ))}
                 </div>
-                {project.sampleNFTs.length > 6 && (
+                {recentlyMinted.length > 6 && (
                   <Button variant="outline" onClick={() => setShowAllNFTs(!showAllNFTs)}
                     className={`w-full ${theme.textAccent} border-white/20 hover:bg-white/10`}>
-                    {showAllNFTs ? "Show Less" : `Show All (${project.sampleNFTs.length})`}
+                    {showAllNFTs ? "Show Less" : `Show All (${recentlyMinted.length})`}
                   </Button>
                 )}
+              </div>
+            )}
+            {recentlyMinted.length === 0 && !loadingNFTs && project.sampleNFTs.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-2xl font-bold text-white">Sample NFTs</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {project.sampleNFTs.slice(0, 6).map((nft) => (
+                    <div key={nft._id} className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
+                      <div className="relative aspect-square">
+                        <Image src={nft.image} alt={nft.name} fill className="object-cover" />
+                      </div>
+                      <div className="p-3">
+                        <p className="text-sm font-medium text-white truncate mb-2">{nft.name}</p>
+                        <div className="flex items-center justify-between">
+                          <Badge className={`${getRarityColor(nft.rarity)} text-[10px] px-2 py-1`}>{nft.rarity}</Badge>
+                          <span className="text-[10px] text-gray-500 font-mono">{nft.mintedBy}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {loadingNFTs && (
+              <div className="space-y-4">
+                <h3 className="text-2xl font-bold text-white">Recently Minted</h3>
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-white/40 animate-spin" />
+                </div>
               </div>
             )}
           </div>

@@ -113,7 +113,7 @@ export async function fetchProjects(): Promise<Project[]> {
   const res = await fetch(`${API_URL}/api/projects`);
   if (!res.ok) throw new Error("Failed to fetch projects");
   const projects = await res.json();
-  return projects.map((project) => processProjectImages(project));
+  return projects.map((project: any) => processProjectImages(project));
 }
 
 export async function fetchProject(slug: string): Promise<Project | null> {
@@ -147,6 +147,12 @@ export async function fetchMintHistory(
 ): Promise<MintHistoryEvent[]> {
   const res = await fetch(`${API_URL}/api/mint/history/${slug}/${wallet}`);
   if (!res.ok) throw new Error("Failed to fetch mint history");
+  return res.json();
+}
+
+export async function fetchRecentlyMinted(slug: string): Promise<SampleNFT[]> {
+  const res = await fetch(`${API_URL}/api/mint/recent/${slug}`);
+  if (!res.ok) throw new Error("Failed to fetch recently minted NFTs");
   return res.json();
 }
 
