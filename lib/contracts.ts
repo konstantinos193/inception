@@ -27,8 +27,8 @@ export const TAO_NFT_ABI = [
   "function mintRecipient() view returns (address)",
 
   "function totalPhases() view returns (uint256)",
-  "function getPhase(uint256 index) view returns (tuple(string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, uint32 minted, bytes32 merkleRoot, bool paused))",
-  "function getAllPhases() view returns (tuple(string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, uint32 minted, bytes32 merkleRoot, bool paused)[])",
+  "function getPhase(uint256 index) view returns (tuple(string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, uint32 minted, address signer, bool paused))",
+  "function getAllPhases() view returns (tuple(string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, uint32 minted, address signer, bool paused)[])",
   "function getActivePhaseIndex() view returns (int256)",
   "function mintableInPhase(uint256 phaseIndex) view returns (uint256)",
   "function phaseMints(address wallet, uint256 phaseIndex) view returns (uint256)",
@@ -42,13 +42,13 @@ export const TAO_NFT_ABI = [
   "function supportsInterface(bytes4 interfaceId) view returns (bool)",
 
   // ── Write (public) ────────────────────────────────────────────────────────
-  "function mint(uint256 phaseIndex, uint256 quantity, bytes32[] merkleProof, uint256 maxAllowance) payable",
+  "function mint(uint256 phaseIndex, uint256 quantity, bytes signature, uint256 maxAllowance) payable",
 
   // ── Write (owner) ─────────────────────────────────────────────────────────
-  "function addPhase(string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, bytes32 merkleRoot)",
-  "function updatePhase(uint256 phaseIndex, string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, bytes32 merkleRoot)",
+  "function addPhase(string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, address signer)",
+  "function updatePhase(uint256 phaseIndex, string name, uint64 startTime, uint64 endTime, uint256 price, uint32 maxPerWallet, uint32 maxSupply, address signer)",
   "function setPhasePaused(uint256 phaseIndex, bool paused)",
-  "function updateMerkleRoot(uint256 phaseIndex, bytes32 merkleRoot)",
+  "function setPhaseSignerAddress(uint256 phaseIndex, address signer)",
   "function reveal(string baseURI)",
   "function setBaseURI(string baseURI)",
   "function setUnrevealedURI(string uri)",
@@ -77,15 +77,15 @@ export const TAO_NFT_ABI = [
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface OnChainPhase {
-  name:          string;
-  startTime:     bigint;
-  endTime:       bigint;
-  price:         bigint;
-  maxPerWallet:  number;
-  maxSupply:     number;
-  minted:        number;
-  merkleRoot:    `0x${string}`;
-  paused:        boolean;
+  name:         string;
+  startTime:    bigint;
+  endTime:      bigint;
+  price:        bigint;
+  maxPerWallet: number;
+  maxSupply:    number;
+  minted:       number;
+  signer:       `0x${string}`;  // address(0) = public phase
+  paused:       boolean;
 }
 
 // ── Address resolution ────────────────────────────────────────────────────────

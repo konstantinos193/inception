@@ -171,7 +171,7 @@ export interface BackendPhase {
   maxPerWallet: number
   maxSupply: number
   minted: number
-  merkleRoot: `0x${string}`
+  signer: `0x${string}`   // address(0) = public; else ECDSA signer
   startTime: number
   endTime: number
   paused: boolean
@@ -211,13 +211,13 @@ export async function fetchContractAddress(slug: string): Promise<{
   return res.json();
 }
 
-export async function fetchMerkleProof(
+export async function fetchSignature(
   slug: string,
   phaseIndex: number,
   wallet: string
-): Promise<{ proof: string[]; allowed: boolean; maxAllowance: number }> {
-  const res = await fetch(`${API_URL}/api/contracts/${slug}/proof/${phaseIndex}/${wallet}`);
-  if (!res.ok) return { proof: [], allowed: false, maxAllowance: 0 };
+): Promise<{ signature: `0x${string}` | null; allowed: boolean; maxAllowance: number }> {
+  const res = await fetch(`${API_URL}/api/contracts/${slug}/signature/${phaseIndex}/${wallet}`);
+  if (!res.ok) return { signature: null, allowed: false, maxAllowance: 0 };
   return res.json();
 }
 

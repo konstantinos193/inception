@@ -18,7 +18,7 @@ import { Separator } from "@/components/ui/separator"
 import { getCollectionTheme, CollectionTheme } from "@/lib/collection-theme"
 import {
   fetchProject,
-  fetchMerkleProof,
+  fetchSignature,
   fetchOnChainStatus,
   checkAllowlist,
   type Project,
@@ -35,7 +35,7 @@ import {
   useBalance,
 } from "wagmi"
 import { useAppKit } from "@reown/appkit/react"
-import { formatUnits, parseUnits, zeroHash } from "viem"
+import { formatUnits, parseUnits, zeroAddress } from "viem"
 import { recordOnChainMint } from "@/lib/api"
 
 // ─── Rarity Badge Colors ───────────────────────────────────────────
@@ -169,7 +169,7 @@ export function ProjectDetail() {
       maxPerWallet: p.maxPerWallet,
       maxSupply: p.maxSupply,
       minted: p.minted,
-      merkleRoot: p.merkleRoot,
+      signer: p.signer,
       paused: p.paused,
     }))
   }, [onChainStatus, nativeDecimals])
@@ -229,31 +229,30 @@ export function ProjectDetail() {
     query: { enabled: !!connectedWallet },
   })
 
-  // ── Allowlist / merkle — fetched from backend API (dynamic, no redeploy needed) ──
+  // ── Allowlist / ECDSA signature — fetched from backend on demand ──────────
+  // address(0) = public phase; any other address = backend must sign for the wallet
 
-  const isAllowlistPhase = !!activeOnChainPhase && activeOnChainPhase.merkleRoot !== zeroHash
+  const isAllowlistPhase = !!activeOnChainPhase && activeOnChainPhase.signer !== zeroAddress
 
-  const [proofData, setProofData] = useState<{
-    proof: `0x${string}`[]
+  const [sigData, setSigData] = useState<{
+    signature: `0x${string}` | null
     allowed: boolean
     maxAllowance: number
   } | null>(null)
 
   useEffect(() => {
     if (!isAllowlistPhase || !connectedWallet || selectedPhaseIndex === null) {
-      setProofData(null)
+      setSigData(null)
       return
     }
-    fetchMerkleProof(slug, selectedPhaseIndex, connectedWallet).then(data => {
-      setProofData({ ...data, proof: data.proof as `0x${string}`[] })
-    }).catch(() => {
-      setProofData({ proof: [], allowed: false, maxAllowance: 0 })
+    fetchSignature(slug, selectedPhaseIndex, connectedWallet).then(setSigData).catch(() => {
+      setSigData({ signature: null, allowed: false, maxAllowance: 0 })
     })
   }, [isAllowlistPhase, connectedWallet, selectedPhaseIndex, slug])
 
-  const walletOnAllowlist = isAllowlistPhase ? (proofData?.allowed ?? false) : true
-  const merkleProof       = (proofData?.proof ?? []) as `0x${string}`[]
-  const wlMaxAllowance    = proofData?.maxAllowance ?? 0
+  const walletOnAllowlist = isAllowlistPhase ? (sigData?.allowed ?? false) : true
+  const mintSignature     = sigData?.signature ?? "0x"
+  const wlMaxAllowance    = sigData?.maxAllowance ?? 0
 
   // ── Per-wallet mint limit ──────────────────────────────────────────────────
 
@@ -319,8 +318,8 @@ export function ProjectDetail() {
       args: [
         BigInt(selectedPhaseIndex),
         BigInt(mintQuantity),
-        merkleProof,
-        BigInt(wlMaxAllowance), // per-wallet allowance from backend
+        mintSignature as `0x${string}`,
+        BigInt(wlMaxAllowance),
       ],
       value: totalCost,
     })
@@ -438,7 +437,7 @@ export function ProjectDetail() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <p className="font-semibold text-white text-sm">{phase.name}</p>
-                    {phase.merkleRoot !== zeroHash
+                    {phase.signer !== zeroAddress
                       ? <Lock className="w-3 h-3 text-yellow-400 flex-shrink-0" title="Allowlist required" />
                       : <Unlock className="w-3 h-3 text-gray-500 flex-shrink-0" title="Public phase" />}
                   </div>
