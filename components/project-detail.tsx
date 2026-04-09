@@ -102,6 +102,29 @@ export function ProjectDetail() {
   } | null>(null)
   const [mintError, setMintError] = useState<string | null>(null)
 
+  // Real-time mint notifications
+  const [liveMintNotification, setLiveMintNotification] = useState<{
+    wallet: string;
+    quantity: number;
+    phaseName: string;
+    timestamp: number;
+  } | null>(null)
+
+  // Show live mint notification for other users' mints
+  const showMintNotification = useCallback((mintData: any) => {
+    setLiveMintNotification({
+      wallet: mintData.wallet,
+      quantity: mintData.quantity,
+      phaseName: mintData.phaseName,
+      timestamp: Date.now()
+    })
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+      setLiveMintNotification(null)
+    }, 5000)
+  }, [])
+
   // Wallet context
   const { address: connectedWallet, isConnected } = useAccount()
   const chainId = useChainId()
@@ -164,15 +187,16 @@ export function ProjectDetail() {
     }, [loadProject, loadOnChainStatus]),
     onMintEvent: useCallback((mintData: any) => {
       console.log("Real-time mint event received:", mintData)
-      // Refresh project data to show newly minted NFTs
+      
+      // Show notification for mints from other users
+      if (mintData.wallet !== connectedWallet) {
+        // Create a temporary notification for other users' mints
+        showMintNotification(mintData)
+      }
+      
+      // Refresh data immediately for real-time updates
       loadProject()
       loadOnChainStatus()
-      
-      // Show a subtle notification for real-time mints from other users
-      if (mintData.wallet !== connectedWallet) {
-        // You could add a toast notification here if desired
-        console.log(`New mint: ${mintData.quantity} NFT(s) by ${mintData.wallet.slice(0, 6)}...${mintData.wallet.slice(-4)}`)
-      }
     }, [loadProject, loadOnChainStatus, connectedWallet]),
     onConnect: useCallback(() => {
       console.log(`WebSocket connected for real-time updates on ${slug}`)
@@ -986,6 +1010,25 @@ export function ProjectDetail() {
                 {project.participants.toLocaleString()} holders
               </p>
             </div>
+
+            {/* Live Mint Notification */}
+            {liveMintNotification && (
+              <div className="fixed top-4 right-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-lg shadow-2xl z-40 max-w-sm animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <div className="w-3 h-3 bg-white rounded-full animate-ping"></div>
+                    <div className="w-3 h-3 bg-white rounded-full absolute top-0"></div>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm">Live Mint!</div>
+                    <div className="text-xs opacity-90">
+                      {liveMintNotification.quantity} NFT{liveMintNotification.quantity > 1 ? 's' : ''} minted by {liveMintNotification.wallet.slice(0, 6)}...{liveMintNotification.wallet.slice(-4)}
+                    </div>
+                    <div className="text-xs opacity-75">{liveMintNotification.phaseName}</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Allowlist Checker */}
             <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
