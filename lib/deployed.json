@@ -1,0 +1,63 @@
+{
+  "network": "localhost",
+  "chainId": "31337",
+  "deployedAt": "2026-04-09T13:45:57.508Z",
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "collections": [
+    {
+      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "name": "Cosmic Creatures",
+      "symbol": "COSM",
+      "slug": "cosmic-creatures",
+      "maxSupply": 10000,
+      "reservedSupply": 100,
+      "globalMaxPerWallet": 20,
+      "royaltyBps": 500,
+      "platformBps": 250,
+      "phases": [
+        {
+          "index": 0,
+          "name": "Validator Holders",
+          "status": "completed",
+          "merkleRoot": "0xf35e9d99762091610714e20619de3e8500fee4eded1f5897d09ecc3904d25289",
+          "allowlist": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+            "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+          ],
+          "price": "0.5",
+          "maxPerWallet": 3,
+          "maxSupply": 2000
+        },
+        {
+          "index": 1,
+          "name": "TAO Stakers",
+          "status": "completed",
+          "merkleRoot": "0x9810cfd68cd331c14cce6c90e4512fc9fe936582fb6fba9ddb0739c32ecac623",
+          "allowlist": [
+            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+            "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+            "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
+            "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
+          ],
+          "price": "0.6",
+          "maxPerWallet": 5,
+          "maxSupply": 3000
+        },
+        {
+          "index": 2,
+          "name": "Public Mint",
+          "status": "active",
+          "merkleRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "allowlist": [],
+          "price": "0.8",
+          "maxPerWallet": 10,
+          "maxSupply": 0
+        }
+      ]
+    }
+  ]
+}

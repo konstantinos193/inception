@@ -1,0 +1,300 @@
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { processProjectImages } from "./image-utils";
+
+export interface MintPhase {
+  _id: string;
+  name: string;
+  status: "completed" | "active" | "upcoming";
+  price: number;
+  maxPerWallet: number;
+  supply: number;
+  minted: number;
+  startDate: string;
+  endDate: string;
+}
+
+export interface SampleNFT {
+  _id: string;
+  tokenId: number;
+  name: string;
+  image: string;
+  rarity: string;
+  mintedBy: string;
+  mintedAt: string;
+}
+
+export interface SubnetInfo {
+  id: number;
+  name: string;
+  alphaToken: string;
+  alphaPrice: number;
+  miners: number;
+  validators: number;
+  dailyEmissions: number;
+}
+
+export interface Project {
+  _id: string;
+  slug: string;
+  name: string;
+  tagline: string;
+  description: string;
+  category: string;
+  chain: string;
+  status: "live" | "upcoming" | "ended";
+  minted: number;
+  supply: number;
+  currency: string;
+  participants: number;
+  mintPrice: number;
+  maxPerWallet: number;
+  startDate: string;
+  endDate: string;
+  twitter?: string;
+  discord?: string;
+  website?: string;
+  gradient: string;
+  logoColors: [string, string];
+  highlights: string[];
+  artist: string;
+  rarity: string[];
+  utilities: string[];
+  logoWide: string;
+  logoSquare: string;
+  phases: MintPhase[];
+  sampleNFTs: SampleNFT[];
+  totalTaoRaised?: number;
+  contractAddress?: string | null;
+  chainId?: number | null;
+  subnet: SubnetInfo;
+}
+
+export interface MintResult {
+  success: boolean;
+  tokenIds: number[];
+  totalCost: number;
+  phase: string;
+  mintEvent: string;
+}
+
+export interface AllowlistResult {
+  wallet: string;
+  allowed: boolean;
+}
+
+export interface MintHistoryEvent {
+  _id: string;
+  wallet: string;
+  phase: string;
+  quantity: number;
+  priceEach: number;
+  totalCost: number;
+  tokenIds: number[];
+  createdAt: string;
+}
+
+export interface PlatformStats {
+  totalMinted: number;
+  activeDrops: number;
+  collectors: number;
+}
+
+// ─── Stats ───────────────────────────────────────────────────
+
+export async function fetchStats(): Promise<PlatformStats> {
+  const res = await fetch(`${API_URL}/api/stats`);
+  if (!res.ok) throw new Error("Failed to fetch stats");
+  return res.json();
+}
+
+// ─── Projects ────────────────────────────────────────────────
+
+export async function fetchProjects(): Promise<Project[]> {
+  const res = await fetch(`${API_URL}/api/projects`);
+  if (!res.ok) throw new Error("Failed to fetch projects");
+  const projects = await res.json();
+  return projects.map((project) => processProjectImages(project));
+}
+
+export async function fetchProject(slug: string): Promise<Project | null> {
+  const res = await fetch(`${API_URL}/api/projects/${slug}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("Failed to fetch project");
+  const project = await res.json();
+  return processProjectImages(project);
+}
+
+// ─── Minting ─────────────────────────────────────────────────
+
+export async function mintNFT(
+  slug: string,
+  wallet: string,
+  quantity: number
+): Promise<MintResult> {
+  const res = await fetch(`${API_URL}/api/mint`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slug, wallet, quantity }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Mint failed");
+  return data;
+}
+
+export async function fetchMintHistory(
+  slug: string,
+  wallet: string
+): Promise<MintHistoryEvent[]> {
+  const res = await fetch(`${API_URL}/api/mint/history/${slug}/${wallet}`);
+  if (!res.ok) throw new Error("Failed to fetch mint history");
+  return res.json();
+}
+
+// ─── Allowlist ───────────────────────────────────────────────
+
+export async function checkAllowlist(
+  slug: string,
+  wallet: string
+): Promise<AllowlistResult> {
+  const res = await fetch(`${API_URL}/api/allowlist/${slug}/${wallet}`);
+  if (!res.ok) throw new Error("Failed to check allowlist");
+  return res.json();
+}
+
+// ─── Contracts ───────────────────────────────────────────────────
+
+export async function fetchContractAddress(slug: string): Promise<{
+  contractAddress: string | null;
+  chainId: number | null;
+}> {
+  const res = await fetch(`${API_URL}/api/contracts/${slug}`);
+  if (!res.ok) return { contractAddress: null, chainId: null };
+  return res.json();
+}
+
+export async function fetchMerkleProof(
+  slug: string,
+  phaseIndex: number,
+  wallet: string
+): Promise<{ proof: string[]; allowed: boolean; maxAllowance: number }> {
+  const res = await fetch(`${API_URL}/api/contracts/${slug}/proof/${phaseIndex}/${wallet}`);
+  if (!res.ok) return { proof: [], allowed: false, maxAllowance: 0 };
+  return res.json();
+}
+
+export async function recordOnChainMint(params: {
+  slug: string;
+  wallet: string;
+  txHash: string;
+  quantity: number;
+  phaseIndex: number;
+  phaseName: string;
+  priceEach: number;
+  tokenIds?: number[];
+}): Promise<void> {
+  await fetch(`${API_URL}/api/contracts/event/mint`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  }).catch(() => {}); // fire-and-forget, don't block UI
+}
+
+// TAO Wallet API types
+export interface WalletInfo {
+  address: string;
+  balance: string;
+  balanceTao: string;
+  name?: string;
+  isConnected: boolean;
+  network: string;
+}
+
+export interface TransactionResult {
+  success: boolean;
+  hash?: string;
+  from?: string;
+  to?: string;
+  amount?: string;
+  status?: string;
+  blockNumber?: number;
+  error?: string;
+}
+
+export interface NetworkInfo {
+  name: string;
+  network: string;
+  chainId: string;
+  rpcEndpoint: string;
+  ss58Format: number;
+  tokenDecimals: number;
+  tokenSymbol: string;
+  blockTime: number;
+  currentBlock: number;
+}
+
+export interface Validator {
+  hotkey: string;
+  name: string;
+  stake: string;
+  stakeTao: string;
+  commission: number;
+  active: boolean;
+}
+
+// TAO Wallet API functions
+export async function fetchWalletBalance(address: string): Promise<WalletInfo> {
+  const res = await fetch(`${API_URL}/api/wallet/balance/${address}`);
+  if (!res.ok) throw new Error("Failed to fetch wallet balance");
+  const data = await res.json();
+  return data.data;
+}
+
+export async function fetchWalletInfo(address: string): Promise<WalletInfo> {
+  const res = await fetch(`${API_URL}/api/wallet/info/${address}`);
+  if (!res.ok) throw new Error("Failed to fetch wallet info");
+  const data = await res.json();
+  return data.data;
+}
+
+export async function sendTAOTransaction(
+  from: string,
+  to: string,
+  amount: string
+): Promise<TransactionResult> {
+  const res = await fetch(`${API_URL}/api/wallet/send`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ from, to, amount }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Transaction failed");
+  return data.data;
+}
+
+export async function stakeToValidator(
+  hotkey: string,
+  amount: string
+): Promise<TransactionResult> {
+  const res = await fetch(`${API_URL}/api/wallet/stake`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hotkey, amount }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Staking failed");
+  return data.data;
+}
+
+export async function fetchNetworkInfo(): Promise<NetworkInfo> {
+  const res = await fetch(`${API_URL}/api/wallet/network`);
+  if (!res.ok) throw new Error("Failed to fetch network info");
+  const data = await res.json();
+  return data.data;
+}
+
+export async function fetchValidators(): Promise<Validator[]> {
+  const res = await fetch(`${API_URL}/api/wallet/validators`);
+  if (!res.ok) throw new Error("Failed to fetch validators");
+  const data = await res.json();
+  return data.data;
+}
