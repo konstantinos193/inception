@@ -8,8 +8,8 @@ import { ClientProviders } from "@/components/client-providers"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: "Elevate",
-  description: "A Pre-Sale Ordinals & Runes Launchpad",
+  title: "TAO EVM NFT Launchpad",
+  description: "A TAO EVM NFT Launchpad for Digital Collectibles",
   icons: {
     icon: '/logo.webp',
     shortcut: '/logo.webp',
@@ -17,23 +17,23 @@ export const metadata = {
   },
   openGraph: {
     type: 'website',
-    url: 'https://elevate.xyz',
-    title: 'Elevate',
-    description: 'A Pre-Sale Ordinals & Runes Launchpad',
-    siteName: 'Elevate',
+    url: 'https://tao-evm-nft-launchpad.xyz',
+    title: 'TAO EVM NFT Launchpad',
+    description: 'A TAO EVM NFT Launchpad for Digital Collectibles',
+    siteName: 'TAO EVM NFT Launchpad',
     images: [
       {
         url: '/og-image.webp',
         width: 1200,
         height: 630,
-        alt: 'Elevate Launchpad',
+        alt: 'TAO EVM NFT Launchpad',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Elevate',
-    description: 'A Pre-Sale Ordinals & Runes Launchpad',
+    title: 'TAO EVM NFT Launchpad',
+    description: 'A TAO EVM NFT Launchpad for Digital Collectibles',
     images: ['/og-image.webp'],
   },
 }
