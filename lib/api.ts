@@ -292,15 +292,25 @@ export async function confirmTransactionViaBackend(params: {
   confirmations?: number;
   timeout?: number;
 }): Promise<TransactionConfirmationResult> {
-  const res = await fetch(`${API_URL}/api/transaction-confirmation/confirm`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-  
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Transaction confirmation failed");
-  return data;
+  // HTTP-level timeout: backend timeout + 10s buffer so the backend can respond with its own timeout error
+  const httpTimeout = (params.timeout || 60000) + 10000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), httpTimeout);
+
+  try {
+    const res = await fetch(`${API_URL}/api/transaction-confirmation/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+      signal: controller.signal,
+    });
+    
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Transaction confirmation failed");
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function getTransactionStatus(params: {

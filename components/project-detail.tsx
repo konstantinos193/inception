@@ -465,8 +465,7 @@ export function ProjectDetail() {
       try {
         const confirmationResult = await confirmTransactionViaBackend({
           txHash: hash,
-          chainId: chainId || 1, // Default to mainnet if no chainId
-          network: chainId === 11155111 ? "testnet" : "mainnet",
+          chainId: chainId,
           confirmations: 1,
           timeout: 45000, // 45 seconds for faster confirmation
         })
@@ -567,8 +566,7 @@ export function ProjectDetail() {
       try {
         const confirmationResult = await confirmTransactionViaBackend({
           txHash: currentTxHash,
-          chainId: chainId || 1,
-          network: chainId === 11155111 ? "testnet" : "mainnet",
+          chainId: chainId,
           confirmations: 1,
           timeout: 30000, // Shorter timeout for retry
         })
