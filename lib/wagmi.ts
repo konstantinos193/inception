@@ -1,7 +1,7 @@
 import { defineChain, http } from "viem"
 import { sepolia } from "viem/chains"
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi"
-import { createBittensorTransport, getRpcUrls } from "./rpc-manager"
+import { createBittensorTransport } from "./rpc-manager"
 
 export { sepolia }
 
@@ -14,7 +14,7 @@ export const bittensor = defineChain({
     decimals: 9,
   },
   rpcUrls: {
-    default: { http: getRpcUrls("mainnet") },
+    default: { http: ["https://lite.chain.opentensor.ai", "https://bittensor-lite-public.nodies.app"] },
   },
   blockExplorers: {
     default: {
@@ -34,7 +34,7 @@ export const bittensorTestnet = defineChain({
     decimals: 9,
   },
   rpcUrls: {
-    default: { http: getRpcUrls("testnet") },
+    default: { http: ["https://test.chain.opentensor.ai", "https://bittensor-testnet-public.nodies.app"] },
   },
   blockExplorers: {
     default: {
@@ -68,10 +68,13 @@ export const wagmiAdapter = new WagmiAdapter({
   projectId,
   networks: [sepolia, bittensor, bittensorTestnet, hardhatLocal],
   transports: {
-    [bittensor.id]: createBittensorTransport("mainnet"),
-    [bittensorTestnet.id]: createBittensorTransport("testnet"),
+    [bittensor.id]: http("https://lite.chain.opentensor.ai"),
+    [bittensorTestnet.id]: http("https://test.chain.opentensor.ai"),
     [hardhatLocal.id]: http("http://127.0.0.1:8545"),
   },
 })
 
 export const wagmiConfig = wagmiAdapter.wagmiConfig
+
+// Note: Enhanced transports with backend RPC providers are initialized in rpc-manager.ts
+// The fallback HTTP transports above will be used if backend is unreachable

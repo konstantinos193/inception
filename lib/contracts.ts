@@ -1,3 +1,15 @@
+export interface OnChainPhase {
+  name: string;
+  startTime: bigint;
+  endTime: bigint;
+  price: bigint;
+  maxPerWallet: number;
+  maxSupply: number;
+  minted: number;
+  signer: `0x${string}`;
+  paused: boolean;
+}
+
 export const TAO_NFT_ABI = [
   {
     "inputs": [

@@ -112,6 +112,11 @@ export function ProjectDetail() {
     timestamp: number;
   } | null>(null)
 
+  // Wallet context
+  const { address: connectedWallet, isConnected } = useAccount()
+  const chainId = useChainId()
+  const { open: openWalletModal } = useAppKit()
+
   // Real recently minted NFTs
   const [recentlyMinted, setRecentlyMinted] = useState<SampleNFT[]>([])
   const [loadingNFTs, setLoadingNFTs] = useState(false)
@@ -121,14 +126,14 @@ export function ProjectDetail() {
     if (!slug) return
     try {
       setLoadingNFTs(true)
-      const nfts = await fetchRecentlyMinted(slug)
+      const nfts = await fetchRecentlyMinted(slug, connectedWallet)
       setRecentlyMinted(nfts)
     } catch (error) {
       console.error('Failed to load recently minted NFTs:', error)
     } finally {
       setLoadingNFTs(false)
     }
-  }, [slug])
+  }, [slug, connectedWallet])
 
   // Show live mint notification for other users' mints
   const showMintNotification = useCallback((mintData: any) => {
@@ -144,11 +149,6 @@ export function ProjectDetail() {
       setLiveMintNotification(null)
     }, 5000)
   }, [])
-
-  // Wallet context
-  const { address: connectedWallet, isConnected } = useAccount()
-  const chainId = useChainId()
-  const { open: openWalletModal } = useAppKit()
 
   
   // Bittensor chains (mainnet 964, testnet 945) use 9 decimals (rao); all others use 18
@@ -373,12 +373,37 @@ export function ProjectDetail() {
   // ── Write contract ─────────────────────────────────────────────────────────
   const { writeContract, data: txHash, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract()
 
-  const { isLoading: isTxConfirming, isSuccess: isTxSuccess, data: txReceipt } = useWaitForTransactionReceipt({
+  const { 
+    isLoading: isTxConfirming, 
+    isSuccess: isTxSuccess, 
+    data: txReceipt, 
+    refetch: refetchTxReceipt 
+  } = useWaitForTransactionReceipt({
     hash: txHash,
-    query: { enabled: !!txHash },
+    pollingInterval: 2000, // Poll every 2 seconds instead of relying on default
+    query: { 
+      enabled: !!txHash,
+      refetchOnWindowFocus: false, // Prevent unnecessary refetches
+      retry: 3 // Retry up to 3 times
+    },
   })
 
   
+  // Timeout mechanism for stuck transactions
+  useEffect(() => {
+    if (!txHash || isTxSuccess) return
+
+    const timeout = setTimeout(() => {
+      // If still confirming after 30 seconds, try manual refetch
+      if (isTxConfirming) {
+        console.log("Transaction confirmation taking too long, attempting manual refetch...")
+        refetchTxReceipt()
+      }
+    }, 30000) // 30 seconds
+
+    return () => clearTimeout(timeout)
+  }, [txHash, isTxConfirming, isTxSuccess, refetchTxReceipt])
+
   // Update UI + sync DB after confirmed tx
   useEffect(() => {
     if (isTxSuccess && txHash && activeOnChainPhase && selectedPhaseIndex !== null) {
@@ -837,9 +862,22 @@ export function ProjectDetail() {
         </Button>
 
         {txHash && !isTxSuccess && (
-          <p className="text-[10px] text-gray-500 text-center truncate">
-            TX: {txHash.slice(0, 10)}…{txHash.slice(-8)}
-          </p>
+          <div className="space-y-2">
+            <p className="text-[10px] text-gray-500 text-center truncate">
+              TX: {txHash.slice(0, 10)}...{txHash.slice(-8)}
+            </p>
+            {isTxConfirming && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetchTxReceipt()}
+                className="w-full text-xs border-white/20 hover:bg-white/10 text-white"
+              >
+                <Loader2 className="w-3 h-3 mr-1" />
+                Retry Confirmation
+              </Button>
+            )}
+          </div>
         )}
       </div>
     )

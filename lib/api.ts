@@ -150,7 +150,28 @@ export async function fetchMintHistory(
   return res.json();
 }
 
-export async function fetchRecentlyMinted(slug: string): Promise<SampleNFT[]> {
+export async function fetchRecentlyMinted(slug: string, wallet?: string): Promise<SampleNFT[]> {
+  // If wallet is provided, get on-chain NFTs owned by that wallet
+  if (wallet) {
+    const res = await fetch(`${API_URL}/api/contracts/${slug}/owned/${wallet}`);
+    if (!res.ok) throw new Error("Failed to fetch on-chain NFTs");
+    const data = await res.json();
+    
+    if (!data.deployed || !data.nfts) return [];
+    
+    // Transform on-chain NFT data to SampleNFT format
+    return data.nfts.map((nft: any, index: number) => ({
+      _id: `${nft.tokenId}`,
+      tokenId: nft.tokenId,
+      name: nft.name,
+      image: nft.image || `/placeholder-${nft.tokenId}.png`, // Fallback image
+      rarity: "Common", // Default rarity since on-chain might not have this
+      mintedBy: wallet,
+      mintedAt: new Date().toISOString() // We don't have mint timestamp from on-chain
+    }));
+  }
+  
+  // If no wallet, get all recently minted NFTs (off-chain fallback)
   const res = await fetch(`${API_URL}/api/mint/recent/${slug}`);
   if (!res.ok) throw new Error("Failed to fetch recently minted NFTs");
   return res.json();

@@ -1,12 +1,11 @@
 /**
  * Frontend RPC Manager
  *
+ * - Fetches RPC providers from backend API
  * - Fetches the best provider from the backend health monitor
  * - Falls back to local priority order when backend is unreachable
  * - Reports provider failures back to the backend
  * - Exports viem fallback transports for wagmi config
- *
- * Provider list mirrors shared/rpc-providers.json — keep in sync.
  */
 
 import { http, fallback, type Transport } from "viem"
@@ -47,8 +46,8 @@ export interface RpcStatus {
   lastUpdated: string
 }
 
-/** Mirror of shared/rpc-providers.json */
-export const RPC_PROVIDERS = {
+// Fallback providers - used only when backend is unreachable
+const FALLBACK_PROVIDERS = {
   mainnet: {
     evm: [
       { id: "opentensor-lite", url: "https://lite.chain.opentensor.ai", name: "OpenTensor Lite", priority: 1, public: true },
@@ -73,6 +72,9 @@ export const RPC_PROVIDERS = {
   },
 } as const
 
+// Cached providers from backend
+let RPC_PROVIDERS: typeof FALLBACK_PROVIDERS = FALLBACK_PROVIDERS
+
 // ─── Backend sync ─────────────────────────────────────────────────────────────
 
 const CACHE_TTL = 30_000 // 30s
@@ -84,6 +86,27 @@ interface ProviderCache {
 
 const _bestCache: Record<string, ProviderCache> = {}
 let _statusCache: { data: RpcStatus; timestamp: number } | null = null
+let _providersCache: { data: typeof FALLBACK_PROVIDERS; timestamp: number } | null = null
+
+/** Fetch RPC providers from backend API */
+async function fetchProvidersFromBackend(): Promise<typeof FALLBACK_PROVIDERS | null> {
+  if (_providersCache && Date.now() - _providersCache.timestamp < CACHE_TTL) {
+    return _providersCache.data
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/rpc/providers`, {
+      signal: AbortSignal.timeout(3000),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    _providersCache = { data, timestamp: Date.now() }
+    RPC_PROVIDERS = data
+    return data
+  } catch {
+    return null
+  }
+}
 
 async function fetchBestFromBackend(
   network: string,
@@ -166,10 +189,13 @@ export async function reportProviderFailure(
  * Providers are ordered by priority; viem retries the next one on failure.
  * Pass `rank: true` to let viem auto-rank by latency (sends periodic pings).
  */
-export function createBittensorTransport(
+export async function createBittensorTransport(
   network: "mainnet" | "testnet" = "mainnet",
   opts: { rank?: boolean } = {}
-): Transport {
+): Promise<Transport> {
+  // Try to get providers from backend first
+  await fetchProvidersFromBackend()
+  
   const providers = [...RPC_PROVIDERS[network].evm].sort(
     (a, b) => a.priority - b.priority
   )
@@ -180,7 +206,10 @@ export function createBittensorTransport(
 }
 
 /** Ordered list of EVM RPC URLs for a network (for use in defineChain). */
-export function getRpcUrls(network: "mainnet" | "testnet" = "mainnet"): string[] {
+export async function getRpcUrls(network: "mainnet" | "testnet" = "mainnet"): Promise<string[]> {
+  // Try to get providers from backend first
+  await fetchProvidersFromBackend()
+  
   return [...RPC_PROVIDERS[network].evm]
     .sort((a, b) => a.priority - b.priority)
     .map((p) => p.url)
