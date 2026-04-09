@@ -19,11 +19,12 @@ import { getCollectionTheme, CollectionTheme } from "@/lib/collection-theme"
 import {
   fetchProject,
   fetchMerkleProof,
+  fetchContractAddress,
   checkAllowlist,
   type Project,
   type AllowlistResult,
 } from "@/lib/api"
-import { TAO_NFT_ABI, getContractAddress, getDeployedChainId, type OnChainPhase } from "@/lib/contracts"
+import { TAO_NFT_ABI, type OnChainPhase } from "@/lib/contracts"
 import {
   useAccount,
   useChainId,
@@ -103,10 +104,13 @@ export function ProjectDetail() {
   const nativeDecimals = (chainId === 964 || chainId === 945) ? 9 : 18
   const fmt = (wei: bigint) => formatUnits(wei, nativeDecimals)
 
-  // Contract address for this slug — only valid if deployed on the connected chain
-  const contractAddress = useMemo(() => getContractAddress(slug), [slug])
-  const deployedChainId = useMemo(() => getDeployedChainId(slug), [slug])
-  const hasContract = !!contractAddress && deployedChainId === chainId
+  // Contract address fetched live from backend — no deployed.json needed, always current
+  const [contractInfo, setContractInfo] = useState<{ contractAddress: string | null; chainId: number | null }>({ contractAddress: null, chainId: null })
+  useEffect(() => {
+    fetchContractAddress(slug).then(setContractInfo).catch(() => {})
+  }, [slug])
+  const contractAddress = (contractInfo.contractAddress ?? null) as `0x${string}` | null
+  const hasContract = !!contractAddress && contractInfo.chainId === chainId
 
   // ── Fetch off-chain project ────────────────────────────────────────────────
   const loadProject = useCallback(async () => {
