@@ -130,6 +130,7 @@ export function ProjectDetail() {
   const chainId = useChainId()
   const { open: openWalletModal } = useAppKit()
 
+  
   // Bittensor chains (mainnet 964, testnet 945) use 9 decimals (rao); all others use 18
   const nativeDecimals = (chainId === 964 || chainId === 945) ? 9 : 18
   const fmt = (wei: bigint) => formatUnits(wei, nativeDecimals)
@@ -153,6 +154,17 @@ export function ProjectDetail() {
 
   const contractAddress = (onChainStatus?.deployed ? onChainStatus.contractAddress : null) as `0x${string}` | null
   const hasContract = !!(onChainStatus?.deployed && onChainStatus.chainId === chainId)
+
+  // Owner detection for admin functions
+  const { data: contractOwner } = useReadContract({
+    address: contractAddress!,
+    abi: TAO_NFT_ABI,
+    functionName: "owner",
+    query: { enabled: hasContract && !!contractAddress }
+  })
+
+  const isOwner = !!connectedWallet && !!contractOwner && 
+    connectedWallet.toLowerCase() === contractOwner.toLowerCase()
 
   // ── Fetch off-chain project ────────────────────────────────────────────────
   const loadProject = useCallback(async () => {
@@ -327,7 +339,6 @@ export function ProjectDetail() {
   const remainingForWallet = Math.max(0, effectiveMaxPerWallet - alreadyMintedThisPhase)
 
   // ── Write contract ─────────────────────────────────────────────────────────
-
   const { writeContract, data: txHash, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract()
 
   const { isLoading: isTxConfirming, isSuccess: isTxSuccess, data: txReceipt } = useWaitForTransactionReceipt({
@@ -335,6 +346,7 @@ export function ProjectDetail() {
     query: { enabled: !!txHash },
   })
 
+  
   // Update UI + sync DB after confirmed tx
   useEffect(() => {
     if (isTxSuccess && txHash && activeOnChainPhase && selectedPhaseIndex !== null) {

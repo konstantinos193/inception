@@ -1,7 +1,7 @@
 {
   "network": "sepolia",
   "chainId": "11155111",
-  "deployedAt": "2026-04-09T18:20:49.138Z",
+  "deployedAt": "2026-04-09T19:09:36.494Z",
   "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "collections": [
     {
@@ -60,7 +60,7 @@
       ]
     },
     {
-      "address": "0x4A06870B65c20Cd7bc2A03B5976943c16a56dEce",
+      "address": "0xCC68788E5CCEF183b6c1104C85387586d2fFfCaD",
       "name": "Chunks",
       "symbol": "CHUNK",
       "slug": "chunks",
@@ -74,10 +74,7 @@
           "index": 0,
           "name": "Whitelist",
           "status": "active",
-          "merkleRoot": "0x5a39f0248e404d3468e2a98800768a113b408a8e39a405f068f52b07cb8c3fe6",
-          "allowlist": [
-            "0xfF231B1987954429F1E6e3392a16A93b0bee63CB"
-          ],
+          "signer": "0xfF231B1987954429F1E6e3392a16A93b0bee63CB",
           "price": "0.01",
           "maxPerWallet": 3,
           "maxSupply": 500
@@ -86,8 +83,7 @@
           "index": 1,
           "name": "Public Mint",
           "status": "upcoming",
-          "merkleRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-          "allowlist": [],
+          "signer": "0x0000000000000000000000000000000000000000",
           "price": "0.012",
           "maxPerWallet": 5,
           "maxSupply": 0
