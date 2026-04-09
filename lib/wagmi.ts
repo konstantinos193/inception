@@ -68,8 +68,16 @@ export const wagmiAdapter = new WagmiAdapter({
   projectId,
   networks: [sepolia, bittensor, bittensorTestnet, hardhatLocal],
   transports: {
-    [bittensor.id]: http("https://lite.chain.opentensor.ai"),
-    [bittensorTestnet.id]: http("https://test.chain.opentensor.ai"),
+    [bittensor.id]: http("https://lite.chain.opentensor.ai", {
+      batch: true,
+      retryCount: 3,
+      retryDelay: 1500,
+    }),
+    [bittensorTestnet.id]: http("https://test.chain.opentensor.ai", {
+      batch: true,
+      retryCount: 3,
+      retryDelay: 1500,
+    }),
     [hardhatLocal.id]: http("http://127.0.0.1:8545"),
   },
 })

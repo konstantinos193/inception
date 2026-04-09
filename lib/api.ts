@@ -265,6 +265,60 @@ export async function recordOnChainMint(params: {
   }).catch(() => {}); // fire-and-forget, don't block UI
 }
 
+// Backend transaction confirmation
+export interface TransactionConfirmationResult {
+  success: boolean;
+  receipt: {
+    status: "success" | "reverted";
+    blockNumber: bigint;
+    blockHash: string;
+    transactionHash: string;
+    gasUsed: string;
+    effectiveGasPrice?: string;
+    logs: any[];
+    type: string;
+  };
+  tokenIds: number[];
+  confirmed: boolean;
+  confirmations: number;
+  error?: string;
+  code?: string;
+}
+
+export async function confirmTransactionViaBackend(params: {
+  txHash: string;
+  chainId: number;
+  network?: string;
+  confirmations?: number;
+  timeout?: number;
+}): Promise<TransactionConfirmationResult> {
+  const res = await fetch(`${API_URL}/api/transaction-confirmation/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Transaction confirmation failed");
+  return data;
+}
+
+export async function getTransactionStatus(params: {
+  txHash: string;
+  chainId: number;
+  network?: string;
+}): Promise<{ success: boolean; status: string; confirmed: boolean; error?: string }> {
+  const queryParams = new URLSearchParams({
+    chainId: params.chainId.toString(),
+    network: params.network || "mainnet",
+  });
+  
+  const res = await fetch(`${API_URL}/api/transaction-confirmation/status/${params.txHash}?${queryParams}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Status check failed");
+  return data;
+}
+
 // TAO Wallet API types
 export interface WalletInfo {
   address: string;

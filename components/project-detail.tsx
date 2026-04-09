@@ -23,10 +23,13 @@ import {
   fetchOnChainStatus,
   checkAllowlist,
   fetchRecentlyMinted,
+  confirmTransactionViaBackend,
+  getTransactionStatus,
   type Project,
   type AllowlistResult,
   type OnChainStatus,
   type SampleNFT,
+  type TransactionConfirmationResult,
 } from "@/lib/api"
 import { TAO_NFT_ABI, type OnChainPhase } from "@/lib/contracts"
 import {
@@ -36,7 +39,9 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
   useBalance,
+  usePublicClient,
 } from "wagmi"
+import { waitForTransactionReceipt } from "viem/actions"
 import { useAppKit } from "@reown/appkit/react"
 import { formatUnits, parseUnits, zeroAddress } from "viem"
 import { recordOnChainMint } from "@/lib/api"
@@ -86,6 +91,7 @@ export function ProjectDetail() {
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
   const [showAllNFTs, setShowAllNFTs] = useState(false)
 
   // ── Allowlist checker (API-based for projects without contract) ────────────
@@ -116,22 +122,27 @@ export function ProjectDetail() {
   const { address: connectedWallet, isConnected } = useAccount()
   const chainId = useChainId()
   const { open: openWalletModal } = useAppKit()
+  const publicClient = usePublicClient()
+
+  // Manual confirmation state for viem approach
+  const [isConfirming, setIsConfirming] = useState(false)
+  const [currentTxHash, setCurrentTxHash] = useState<string | null>(null)
 
   // Real recently minted NFTs
   const [recentlyMinted, setRecentlyMinted] = useState<SampleNFT[]>([])
   const [loadingNFTs, setLoadingNFTs] = useState(false)
 
   // Load recently minted NFTs
-  const loadRecentlyMinted = useCallback(async () => {
+  const loadRecentlyMinted = useCallback(async (showLoading = false) => {
     if (!slug) return
     try {
-      setLoadingNFTs(true)
+      if (showLoading) setLoadingNFTs(true)
       const nfts = await fetchRecentlyMinted(slug, connectedWallet)
       setRecentlyMinted(nfts)
     } catch (error) {
       console.error('Failed to load recently minted NFTs:', error)
     } finally {
-      setLoadingNFTs(false)
+      if (showLoading) setLoadingNFTs(false)
     }
   }, [slug, connectedWallet])
 
@@ -187,9 +198,11 @@ export function ProjectDetail() {
     connectedWallet.toLowerCase() === contractOwner.toLowerCase()
 
   // ── Fetch off-chain project ────────────────────────────────────────────────
-  const loadProject = useCallback(async () => {
+  const loadProject = useCallback(async (showLoading = false) => {
     try {
-      setLoading(true)
+      if (showLoading && isInitialLoad) {
+        setLoading(true)
+      }
       setError(null)
       const data = await fetchProject(slug)
       if (!data) { setError("not_found"); return }
@@ -197,36 +210,53 @@ export function ProjectDetail() {
     } catch (err: unknown) {
       setError((err as Error).message)
     } finally {
-      setLoading(false)
+      if (showLoading && isInitialLoad) {
+        setLoading(false)
+        setIsInitialLoad(false)
+      }
     }
-  }, [slug])
+  }, [slug, isInitialLoad])
 
-  useEffect(() => { loadProject() }, [loadProject])
+  useEffect(() => { loadProject(true) }, [loadProject])
 
   useEffect(() => {
     if (!project || project.status !== "live") return
-    const id = setInterval(loadProject, 10_000)
+    const id = setInterval(() => loadProject(false), 30_000) // Reduced frequency, no loading state
     return () => clearInterval(id)
   }, [project?.status, loadProject])
 
   // Load recently minted NFTs on mount and refresh periodically
   useEffect(() => {
-    loadRecentlyMinted()
+    loadRecentlyMinted(true)
     
-    // Refresh recently minted NFTs every 10 seconds for live projects
+    // Refresh recently minted NFTs every 20 seconds for live projects (reduced frequency)
     if (project?.status === "live") {
-      const id = setInterval(loadRecentlyMinted, 10_000)
+      const id = setInterval(() => loadRecentlyMinted(false), 20_000)
       return () => clearInterval(id)
     }
   }, [slug, project?.status, loadRecentlyMinted])
+
+  // Force refresh on-chain status immediately before any minting attempt
+  const refreshOnChainStatusBeforeMint = useCallback(async () => {
+    try {
+      await loadOnChainStatus()
+      // Add a small delay to ensure the data is processed
+      await new Promise(resolve => setTimeout(resolve, 500))
+    } catch (error) {
+      console.error("Failed to refresh on-chain status before mint:", error)
+    }
+  }, [loadOnChainStatus])
 
   // WebSocket for real-time updates (moved after all dependencies are defined)
   const { isConnected: isWsConnected } = useWebSocket({
     slug,
     onProjectUpdate: useCallback((data: any) => {
       console.log("Real-time project update received:", data)
-      loadProject()
-      loadOnChainStatus()
+      // Use debounced updates to prevent flashing
+      setTimeout(() => {
+        loadProject(false)
+        loadOnChainStatus()
+      }, 100)
     }, [loadProject, loadOnChainStatus]),
     onMintEvent: useCallback((mintData: any) => {
       console.log("Real-time mint event received:", mintData)
@@ -237,10 +267,12 @@ export function ProjectDetail() {
         showMintNotification(mintData)
       }
       
-      // Refresh data immediately for real-time updates
-      loadProject()
-      loadOnChainStatus()
-      loadRecentlyMinted()
+      // Use debounced updates to prevent flashing
+      setTimeout(() => {
+        loadProject(false)
+        loadOnChainStatus()
+        loadRecentlyMinted(false)
+      }, 100)
     }, [loadProject, loadOnChainStatus, loadRecentlyMinted, connectedWallet]),
     onConnect: useCallback(() => {
       console.log(`WebSocket connected for real-time updates on ${slug}`)
@@ -329,6 +361,13 @@ export function ProjectDetail() {
     query: { enabled: hasContract && !!connectedWallet },
   })
 
+  // Get global max per wallet from contract
+  const { data: globalMaxPerWallet } = useReadContract({
+    ...contractCfg,
+    functionName: "globalMaxPerWallet",
+    query: { enabled: hasContract },
+  })
+
   // Native balance of connected wallet
   const { data: walletBalance } = useBalance({
     address: connectedWallet,
@@ -360,86 +399,28 @@ export function ProjectDetail() {
   const mintSignature     = sigData?.signature ?? "0x"
   const wlMaxAllowance    = sigData?.maxAllowance ?? 0
 
-  // ── Per-wallet mint limit ──────────────────────────────────────────────────
-
+  // ── Per-wallet mint limit ──────────────────────────────────────────────────// Per-wallet mint limit - MUST match smart contract logic exactly
+  
   const effectiveMaxPerWallet: number = useMemo(() => {
     if (!activeOnChainPhase) return project?.maxPerWallet ?? 10
     return activeOnChainPhase.maxPerWallet || 999
   }, [activeOnChainPhase, project])
 
   const alreadyMintedThisPhase = walletPhaseMinted ? Number(walletPhaseMinted) : 0
-  const remainingForWallet = Math.max(0, effectiveMaxPerWallet - alreadyMintedThisPhase)
+  const alreadyMintedTotal = walletTotalMinted ? Number(walletTotalMinted) : 0
+  const globalMaxPer = globalMaxPerWallet ? Number(globalMaxPerWallet) : 0
+
+  // Calculate remaining based on BOTH phase and global limits (exactly like smart contract)
+  const remainingInPhase = Math.max(0, effectiveMaxPerWallet - alreadyMintedThisPhase)
+  const remainingGlobal = globalMaxPer > 0 ? Math.max(0, globalMaxPer - alreadyMintedTotal) : 999
+  
+  // The actual remaining is the MINIMUM of phase and global limits (contract enforces both)
+  const remainingForWallet = Math.min(remainingInPhase, remainingGlobal)
 
   // ── Write contract ─────────────────────────────────────────────────────────
-  const { writeContract, data: txHash, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract()
-
-  const { 
-    isLoading: isTxConfirming, 
-    isSuccess: isTxSuccess, 
-    data: txReceipt, 
-    refetch: refetchTxReceipt 
-  } = useWaitForTransactionReceipt({
-    hash: txHash,
-    pollingInterval: 2000, // Poll every 2 seconds instead of relying on default
-    query: { 
-      enabled: !!txHash,
-      refetchOnWindowFocus: false, // Prevent unnecessary refetches
-      retry: 3 // Retry up to 3 times
-    },
-  })
+  const { writeContractAsync, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract()
 
   
-  // Timeout mechanism for stuck transactions
-  useEffect(() => {
-    if (!txHash || isTxSuccess) return
-
-    const timeout = setTimeout(() => {
-      // If still confirming after 30 seconds, try manual refetch
-      if (isTxConfirming) {
-        console.log("Transaction confirmation taking too long, attempting manual refetch...")
-        refetchTxReceipt()
-      }
-    }, 30000) // 30 seconds
-
-    return () => clearTimeout(timeout)
-  }, [txHash, isTxConfirming, isTxSuccess, refetchTxReceipt])
-
-  // Update UI + sync DB after confirmed tx
-  useEffect(() => {
-    if (isTxSuccess && txHash && activeOnChainPhase && selectedPhaseIndex !== null) {
-      // Reset minting state immediately
-      resetWrite()
-      
-      // Set success state with full details
-      setMintSuccess({ 
-        txHash, 
-        quantity: mintQuantity,
-        phaseName: activeOnChainPhase.name,
-        priceEach: Number(fmt(activeOnChainPhase.price)),
-        totalCost: Number(fmt(activeOnChainPhase.price * BigInt(mintQuantity)))
-      })
-      setMintError(null)
-      
-      // Refresh data
-      loadOnChainStatus()
-      loadProject()
-      
-      // Record mint event
-      recordOnChainMint({
-        slug,
-        wallet: connectedWallet ?? "",
-        txHash,
-        quantity: mintQuantity,
-        phaseIndex: selectedPhaseIndex,
-        phaseName: activeOnChainPhase.name,
-        priceEach: Number(fmt(activeOnChainPhase.price)),
-      })
-      
-      // Reset quantity
-      setMintQuantity(1)
-    }
-  }, [isTxSuccess, txHash, loadProject, activeOnChainPhase, selectedPhaseIndex, mintQuantity, connectedWallet])
-
   // Surface write errors
   useEffect(() => {
     if (writeError) {
@@ -452,26 +433,225 @@ export function ProjectDetail() {
   }, [writeError])
 
   // ── Mint handler ───────────────────────────────────────────────────────────
+  const handleOnChainMint = async () => {
+    if (!contractAddress || selectedPhaseIndex === null || !activeOnChainPhase || !publicClient) return
 
-  const handleOnChainMint = () => {
-    if (!contractAddress || selectedPhaseIndex === null || !activeOnChainPhase) return
     setMintError(null)
     setMintSuccess(null)
+    setCurrentTxHash(null)
     resetWrite()
 
-    const totalCost = activeOnChainPhase.price * BigInt(mintQuantity)
-    writeContract({
-      address: contractAddress,
-      abi: TAO_NFT_ABI,
-      functionName: "mint",
-      args: [
-        BigInt(selectedPhaseIndex),
-        BigInt(mintQuantity),
-        mintSignature as `0x${string}`,
-        BigInt(wlMaxAllowance),
-      ],
-      value: totalCost,
-    })
+    try {
+      const hash = await writeContractAsync({
+        address: contractAddress,
+        abi: TAO_NFT_ABI,
+        functionName: "mint",
+        args: [
+          BigInt(selectedPhaseIndex),
+          BigInt(mintQuantity),
+          mintSignature as `0x${string}`,
+          BigInt(wlMaxAllowance),
+        ],
+        value: activeOnChainPhase.price * BigInt(mintQuantity),
+      })
+
+      // Show hash immediately
+      console.log("Transaction submitted:", hash)
+      setCurrentTxHash(hash)
+
+      // Use backend for fast and reliable transaction confirmation
+      setIsConfirming(true)
+
+      try {
+        const confirmationResult = await confirmTransactionViaBackend({
+          txHash: hash,
+          chainId: chainId || 1, // Default to mainnet if no chainId
+          network: chainId === 11155111 ? "testnet" : "mainnet",
+          confirmations: 1,
+          timeout: 45000, // 45 seconds for faster confirmation
+        })
+
+        if (confirmationResult.confirmed && confirmationResult.receipt.status === 'success') {
+          // Success path - backend confirmed the transaction
+          resetWrite()
+          setMintSuccess({ 
+            txHash: hash, 
+            quantity: mintQuantity,
+            phaseName: activeOnChainPhase.name,
+            priceEach: Number(fmt(activeOnChainPhase.price)),
+            totalCost: Number(fmt(activeOnChainPhase.price * BigInt(mintQuantity)))
+          })
+
+          loadOnChainStatus()
+          loadProject()
+          
+          // Record the mint with token IDs extracted by the backend
+          recordOnChainMint({
+            slug,
+            wallet: connectedWallet ?? "",
+            txHash: hash,
+            quantity: mintQuantity,
+            phaseIndex: selectedPhaseIndex,
+            phaseName: activeOnChainPhase.name,
+            priceEach: Number(fmt(activeOnChainPhase.price)),
+            tokenIds: confirmationResult.tokenIds,
+          })
+          
+          setMintQuantity(1)
+          setCurrentTxHash(null)
+        } else {
+          setMintError("Transaction failed or reverted")
+          setCurrentTxHash(null)
+        }
+      } catch (confirmationError: any) {
+        console.error("Backend confirmation failed:", confirmationError)
+        // Fallback to frontend confirmation if backend fails
+        try {
+          const receipt = await waitForTransactionReceipt(publicClient, {
+            hash,
+            confirmations: 1,
+            pollingInterval: 2000,
+            timeout: 60000,
+            retryCount: 5,
+            retryDelay: 1500,
+          })
+
+          if (receipt.status === 'success') {
+            resetWrite()
+            setMintSuccess({ 
+              txHash: hash, 
+              quantity: mintQuantity,
+              phaseName: activeOnChainPhase.name,
+              priceEach: Number(fmt(activeOnChainPhase.price)),
+              totalCost: Number(fmt(activeOnChainPhase.price * BigInt(mintQuantity)))
+            })
+
+            loadOnChainStatus()
+            loadProject()
+            recordOnChainMint({
+              slug,
+              wallet: connectedWallet ?? "",
+              txHash: hash,
+              quantity: mintQuantity,
+              phaseIndex: selectedPhaseIndex,
+              phaseName: activeOnChainPhase.name,
+              priceEach: Number(fmt(activeOnChainPhase.price)),
+            })
+            setMintQuantity(1)
+            setCurrentTxHash(null)
+          } else {
+            setMintError("Transaction reverted")
+            setCurrentTxHash(null)
+          }
+        } catch (fallbackError) {
+          console.error("Fallback confirmation also failed:", fallbackError)
+          setMintError("Transaction confirmation failed. Please check your transaction.")
+          setCurrentTxHash(null)
+        }
+      }
+    } catch (error: any) {
+      console.error("Mint error:", error)
+      setMintError(error?.shortMessage || error?.message || "Mint failed")
+    } finally {
+      setIsConfirming(false)
+    }
+  }
+
+  // Retry confirmation function using backend
+  const retryConfirmation = async () => {
+    if (!currentTxHash) return
+    try {
+      setIsConfirming(true)
+      
+      // Try backend confirmation first for faster results
+      try {
+        const confirmationResult = await confirmTransactionViaBackend({
+          txHash: currentTxHash,
+          chainId: chainId || 1,
+          network: chainId === 11155111 ? "testnet" : "mainnet",
+          confirmations: 1,
+          timeout: 30000, // Shorter timeout for retry
+        })
+
+        if (confirmationResult.confirmed && confirmationResult.receipt.status === 'success' && activeOnChainPhase && selectedPhaseIndex !== null) {
+          resetWrite()
+          setMintSuccess({ 
+            txHash: currentTxHash, 
+            quantity: mintQuantity,
+            phaseName: activeOnChainPhase.name,
+            priceEach: Number(fmt(activeOnChainPhase.price)),
+            totalCost: Number(fmt(activeOnChainPhase.price * BigInt(mintQuantity)))
+          })
+          setMintError(null)
+          
+          loadOnChainStatus()
+          loadProject()
+          recordOnChainMint({
+            slug,
+            wallet: connectedWallet ?? "",
+            txHash: currentTxHash,
+            quantity: mintQuantity,
+            phaseIndex: selectedPhaseIndex,
+            phaseName: activeOnChainPhase.name,
+            priceEach: Number(fmt(activeOnChainPhase.price)),
+            tokenIds: confirmationResult.tokenIds,
+          })
+          setMintQuantity(1)
+          setCurrentTxHash(null)
+          return
+        }
+      } catch (backendError) {
+        console.log("Backend retry failed, falling back to frontend:", backendError)
+      }
+
+      // Fallback to frontend confirmation
+      if (publicClient) {
+        const receipt = await waitForTransactionReceipt(publicClient, { 
+          hash: currentTxHash as `0x${string}`, 
+          confirmations: 1,
+          pollingInterval: 2000,
+          timeout: 30000,
+          retryCount: 3,
+          retryDelay: 1500,
+        })
+        
+        if (receipt.status === 'success' && activeOnChainPhase && selectedPhaseIndex !== null) {
+          resetWrite()
+          setMintSuccess({ 
+            txHash: currentTxHash, 
+            quantity: mintQuantity,
+            phaseName: activeOnChainPhase.name,
+            priceEach: Number(fmt(activeOnChainPhase.price)),
+            totalCost: Number(fmt(activeOnChainPhase.price * BigInt(mintQuantity)))
+          })
+          setMintError(null)
+          
+          loadOnChainStatus()
+          loadProject()
+          recordOnChainMint({
+            slug,
+            wallet: connectedWallet ?? "",
+            txHash: currentTxHash,
+            quantity: mintQuantity,
+            phaseIndex: selectedPhaseIndex,
+            phaseName: activeOnChainPhase.name,
+            priceEach: Number(fmt(activeOnChainPhase.price)),
+          })
+          setMintQuantity(1)
+          setCurrentTxHash(null)
+        } else {
+          setMintError("Transaction failed or reverted")
+          setCurrentTxHash(null)
+        }
+      } else {
+        setMintError("No connection available for confirmation")
+      }
+    } catch (e) {
+      console.log("Still not confirmed", e)
+      setMintError("Transaction still confirming. Please wait a bit longer.")
+    } finally {
+      setIsConfirming(false)
+    }
   }
 
   // ── Allowlist checker (legacy API) ────────────────────────────────────────
@@ -502,7 +682,7 @@ export function ProjectDetail() {
 
   const displayCurrency = project?.currency ?? "TAO"
 
-  const isMinting = isWritePending || isTxConfirming
+  const isMinting = isWritePending || isConfirming
   const canMint = hasContract
     ? (isConnected
         && selectedPhaseIndex !== null
@@ -759,10 +939,14 @@ export function ProjectDetail() {
           )}
           <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 text-center">
             <CheckCircle2 className="w-8 h-8 text-orange-400 mx-auto mb-2" />
-            <p className="text-orange-400 font-medium">Phase limit reached</p>
-            <p className="text-gray-500 text-xs mt-1">
-              {alreadyMintedThisPhase} / {effectiveMaxPerWallet} minted in this phase
-            </p>
+            <p className="text-orange-400 font-medium">Mint limit reached</p>
+            <div className="text-gray-500 text-xs mt-1 space-y-1">
+              <p>Phase: {alreadyMintedThisPhase} / {effectiveMaxPerWallet === 999 ? "unlimited" : effectiveMaxPerWallet}</p>
+              {globalMaxPer > 0 && (
+                <p>Total: {alreadyMintedTotal} / {globalMaxPer} across all phases</p>
+              )}
+              <p className="text-orange-400 font-medium">You can mint {remainingForWallet} more NFT{remainingForWallet !== 1 ? 's' : ''}</p>
+            </div>
           </div>
         </div>
       )
@@ -796,24 +980,28 @@ export function ProjectDetail() {
         )}
 
         {/* Phase info row */}
-        <div className="flex items-center justify-between text-xs text-gray-400">
-          <div className="flex items-center gap-2">
-            {isAllowlistPhase
-              ? <><Lock className="w-3 h-3 text-yellow-400" /><span className="text-yellow-400">Allowlist</span></>
-              : <><Unlock className="w-3 h-3 text-gray-500" /><span>Public</span></>}
-            {isAllowlistPhase && walletOnAllowlist && (
-              <span className="flex items-center gap-1 text-green-400">
-                <CheckCircle2 className="w-3 h-3" />verified
-              </span>
+        <div className="flex flex-col gap-2 text-xs text-gray-400">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {isAllowlistPhase
+                ? <><Lock className="w-3 h-3 text-yellow-400" /><span className="text-yellow-400">Allowlist</span></>
+                : <><Unlock className="w-3 h-3 text-gray-500" /><span>Public</span></>}
+              {isAllowlistPhase && walletOnAllowlist && (
+                <span className="flex items-center gap-1 text-green-400">
+                  <CheckCircle2 className="w-3 h-3" />verified
+                </span>
+              )}
+            </div>
+            {secsLeft !== null && (
+              <span className="font-mono text-orange-400 tabular-nums">Phase ends {formatCountdown(secsLeft)}</span>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-gray-500">
-              {alreadyMintedThisPhase}/{effectiveMaxPerWallet === 999 ? "∞" : effectiveMaxPerWallet} used
-            </span>
-            {secsLeft !== null && (
-              <span className="font-mono text-orange-400 tabular-nums">⏱ {formatCountdown(secsLeft)}</span>
+          <div className="flex flex-col gap-1 font-mono text-gray-500">
+            <div>Phase: {alreadyMintedThisPhase}/{effectiveMaxPerWallet === 999 ? "unlimited" : effectiveMaxPerWallet}</div>
+            {globalMaxPer > 0 && (
+              <div>Total: {alreadyMintedTotal}/{globalMaxPer} across all phases</div>
             )}
+            <div className="text-green-400 font-medium">Can mint {remainingForWallet} more NFT{remainingForWallet !== 1 ? 's' : ''}</div>
           </div>
         </div>
 
@@ -861,16 +1049,16 @@ export function ProjectDetail() {
           )}
         </Button>
 
-        {txHash && !isTxSuccess && (
+        {currentTxHash && !mintSuccess && (
           <div className="space-y-2">
             <p className="text-[10px] text-gray-500 text-center truncate">
-              TX: {txHash.slice(0, 10)}...{txHash.slice(-8)}
+              TX: {currentTxHash.slice(0, 10)}...{currentTxHash.slice(-8)}
             </p>
-            {isTxConfirming && (
+            {isConfirming && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => refetchTxReceipt()}
+                onClick={retryConfirmation}
                 className="w-full text-xs border-white/20 hover:bg-white/10 text-white"
               >
                 <Loader2 className="w-3 h-3 mr-1" />
@@ -959,63 +1147,68 @@ export function ProjectDetail() {
               </div>
             )}
 
-            {/* NFT Gallery */}
-            {recentlyMinted.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="text-2xl font-bold text-white">Recently Minted</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {recentlyMinted.slice(0, showAllNFTs ? recentlyMinted.length : 6).map((nft) => (
-                    <div key={nft._id} className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
-                      <div className="relative aspect-square">
-                        <Image src={nft.image} alt={nft.name} fill className="object-cover" />
-                      </div>
-                      <div className="p-3">
-                        <p className="text-sm font-medium text-white truncate mb-2">{nft.name}</p>
-                        <div className="flex items-center justify-between">
-                          <Badge className={`${getRarityColor(nft.rarity)} text-[10px] px-2 py-1`}>{nft.rarity}</Badge>
-                          <span className="text-[10px] text-gray-500 font-mono">{nft.mintedBy}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {recentlyMinted.length > 6 && (
-                  <Button variant="outline" onClick={() => setShowAllNFTs(!showAllNFTs)}
-                    className={`w-full ${theme.textAccent} border-white/20 hover:bg-white/10`}>
-                    {showAllNFTs ? "Show Less" : `Show All (${recentlyMinted.length})`}
-                  </Button>
+            
+            {/* Highlights */}
+            <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
+              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Star className={`w-5 h-5 ${theme.textAccent}`} />
+                Highlights
+              </h2>
+              <ul className="space-y-2">
+                {project.highlights.length > 0 ? (
+                  project.highlights.map((h, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                      <CheckCircle2 className={`w-4 h-4 ${theme.textAccent} flex-shrink-0 mt-0.5`} />
+                      {h}
+                    </li>
+                  ))
+                ) : (
+                  <>
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <CheckCircle2 className={`w-4 h-4 ${theme.textAccent} flex-shrink-0 mt-0.5`} />
+                      Limited edition collection with unique artwork
+                    </li>
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <CheckCircle2 className={`w-4 h-4 ${theme.textAccent} flex-shrink-0 mt-0.5`} />
+                      Built on blockchain with verified ownership
+                    </li>
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <CheckCircle2 className={`w-4 h-4 ${theme.textAccent} flex-shrink-0 mt-0.5`} />
+                      Community-driven development and governance
+                    </li>
+                  </>
                 )}
-              </div>
-            )}
-            {recentlyMinted.length === 0 && !loadingNFTs && project.sampleNFTs.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="text-2xl font-bold text-white">Sample NFTs</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {project.sampleNFTs.slice(0, 6).map((nft) => (
-                    <div key={nft._id} className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
-                      <div className="relative aspect-square">
-                        <Image src={nft.image} alt={nft.name} fill className="object-cover" />
-                      </div>
-                      <div className="p-3">
-                        <p className="text-sm font-medium text-white truncate mb-2">{nft.name}</p>
-                        <div className="flex items-center justify-between">
-                          <Badge className={`${getRarityColor(nft.rarity)} text-[10px] px-2 py-1`}>{nft.rarity}</Badge>
-                          <span className="text-[10px] text-gray-500 font-mono">{nft.mintedBy}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {loadingNFTs && (
-              <div className="space-y-4">
-                <h3 className="text-2xl font-bold text-white">Recently Minted</h3>
-                <div className="flex justify-center py-8">
-                  <Loader2 className="w-6 h-6 text-white/40 animate-spin" />
-                </div>
-              </div>
-            )}
+              </ul>
+            </div>
+
+            {/* Utilities */}
+            <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
+              <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Zap className={`w-5 h-5 ${theme.textAccent}`} />
+                Utility
+              </h2>
+              <ul className="space-y-2">
+                {project.utilities.length > 0 ? (
+                  project.utilities.map((u, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                      <div className={`w-1.5 h-1.5 rounded-full ${theme.textAccent.replace("text-", "bg-")} flex-shrink-0 mt-1.5`} />
+                      {u}
+                    </li>
+                  ))
+                ) : (
+                  <>
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <div className={`w-1.5 h-1.5 rounded-full ${theme.textAccent.replace("text-", "bg-")} flex-shrink-0 mt-1.5`} />
+                      Digital collectible with verified scarcity
+                    </li>
+                    <li className="flex items-start gap-2 text-sm text-gray-300">
+                      <div className={`w-1.5 h-1.5 rounded-full ${theme.textAccent.replace("text-", "bg-")} flex-shrink-0 mt-1.5`} />
+                      Access to exclusive community features
+                    </li>
+                  </>
+                )}
+              </ul>
+            </div>
           </div>
 
           {/* ─── Right Column ─── */}
@@ -1175,41 +1368,6 @@ export function ProjectDetail() {
               </div>
             </div>
 
-            {/* Highlights */}
-            {project.highlights.length > 0 && (
-              <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
-                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <Star className={`w-5 h-5 ${theme.textAccent}`} />
-                  Highlights
-                </h2>
-                <ul className="space-y-2">
-                  {project.highlights.map((h, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
-                      <CheckCircle2 className={`w-4 h-4 ${theme.textAccent} flex-shrink-0 mt-0.5`} />
-                      {h}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* Utilities */}
-            {project.utilities.length > 0 && (
-              <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
-                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <Zap className={`w-5 h-5 ${theme.textAccent}`} />
-                  Utility
-                </h2>
-                <ul className="space-y-2">
-                  {project.utilities.map((u, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
-                      <div className={`w-1.5 h-1.5 rounded-full ${theme.textAccent.replace("text-", "bg-")} flex-shrink-0 mt-1.5`} />
-                      {u}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
         </div>
 
