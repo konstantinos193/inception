@@ -19,17 +19,17 @@ import { getCollectionTheme, CollectionTheme } from "@/lib/collection-theme"
 import {
   fetchProject,
   fetchMerkleProof,
-  fetchContractAddress,
+  fetchOnChainStatus,
   checkAllowlist,
   type Project,
   type AllowlistResult,
+  type OnChainStatus,
 } from "@/lib/api"
 import { TAO_NFT_ABI, type OnChainPhase } from "@/lib/contracts"
 import {
   useAccount,
   useChainId,
   useReadContract,
-  useReadContracts,
   useWriteContract,
   useWaitForTransactionReceipt,
   useBalance,
@@ -104,13 +104,25 @@ export function ProjectDetail() {
   const nativeDecimals = (chainId === 964 || chainId === 945) ? 9 : 18
   const fmt = (wei: bigint) => formatUnits(wei, nativeDecimals)
 
-  // Contract address fetched live from backend — no deployed.json needed, always current
-  const [contractInfo, setContractInfo] = useState<{ contractAddress: string | null; chainId: number | null }>({ contractAddress: null, chainId: null })
-  useEffect(() => {
-    fetchContractAddress(slug).then(setContractInfo).catch(() => {})
+  // On-chain status fetched from backend (backend makes the RPC call, not the frontend)
+  const [onChainStatus, setOnChainStatus] = useState<OnChainStatus | null>(null)
+
+  const loadOnChainStatus = useCallback(async () => {
+    try {
+      const status = await fetchOnChainStatus(slug)
+      setOnChainStatus(status)
+    } catch {}
   }, [slug])
-  const contractAddress = (contractInfo.contractAddress ?? null) as `0x${string}` | null
-  const hasContract = !!contractAddress && contractInfo.chainId === chainId
+
+  useEffect(() => { loadOnChainStatus() }, [loadOnChainStatus])
+
+  useEffect(() => {
+    const id = setInterval(loadOnChainStatus, 15_000)
+    return () => clearInterval(id)
+  }, [loadOnChainStatus])
+
+  const contractAddress = (onChainStatus?.deployed ? onChainStatus.contractAddress : null) as `0x${string}` | null
+  const hasContract = !!(onChainStatus?.deployed && onChainStatus.chainId === chainId)
 
   // ── Fetch off-chain project ────────────────────────────────────────────────
   const loadProject = useCallback(async () => {
@@ -142,27 +154,33 @@ export function ProjectDetail() {
     return () => clearInterval(id)
   }, [])
 
-  // ── On-chain reads ─────────────────────────────────────────────────────────
+  // ── On-chain data from backend status ─────────────────────────────────────
 
   const contractCfg = { address: contractAddress!, abi: TAO_NFT_ABI } as const
 
-  const { data: onChainPhases, refetch: refetchPhases } = useReadContract({
-    ...contractCfg,
-    functionName: "getAllPhases",
-    query: { enabled: hasContract, refetchInterval: 10_000 },
-  })
+  // Convert backend's string-price phases to OnChainPhase (BigInt) format for compatibility
+  const onChainPhases: OnChainPhase[] | undefined = useMemo(() => {
+    if (!onChainStatus?.deployed || !onChainStatus.onChain) return undefined
+    return onChainStatus.onChain.phases.map(p => ({
+      name: p.name,
+      startTime: BigInt(p.startTime),
+      endTime: BigInt(p.endTime),
+      price: parseUnits(p.price, nativeDecimals),
+      maxPerWallet: p.maxPerWallet,
+      maxSupply: p.maxSupply,
+      minted: p.minted,
+      merkleRoot: p.merkleRoot,
+      paused: p.paused,
+    }))
+  }, [onChainStatus, nativeDecimals])
 
-  const { data: onChainTotalMinted, refetch: refetchMinted } = useReadContract({
-    ...contractCfg,
-    functionName: "totalMinted",
-    query: { enabled: hasContract, refetchInterval: 10_000 },
-  })
+  const onChainTotalMinted: number | undefined = onChainStatus?.deployed
+    ? onChainStatus.onChain?.totalMinted
+    : undefined
 
-  const { data: onChainTransfersLocked } = useReadContract({
-    ...contractCfg,
-    functionName: "transfersLocked",
-    query: { enabled: hasContract },
-  })
+  const onChainTransfersLocked: boolean | undefined = onChainStatus?.deployed
+    ? onChainStatus.onChain?.transfersLocked
+    : undefined
 
   // ── Selected phase (user-chosen when multiple are active) ──────────────────
   const [selectedPhaseIndex, setSelectedPhaseIndex] = useState<number | null>(null)
@@ -261,8 +279,7 @@ export function ProjectDetail() {
     if (isTxSuccess && txHash && activeOnChainPhase && selectedPhaseIndex !== null) {
       setMintSuccess({ txHash, quantity: mintQuantity })
       setMintError(null)
-      refetchPhases()
-      refetchMinted()
+      loadOnChainStatus()
       recordOnChainMint({
         slug,
         wallet: connectedWallet ?? "",
@@ -327,7 +344,7 @@ export function ProjectDetail() {
   // ── Derived display values ─────────────────────────────────────────────────
 
   const displayMinted = hasContract && onChainTotalMinted !== undefined
-    ? Number(onChainTotalMinted)
+    ? onChainTotalMinted
     : (project?.minted ?? 0)
 
   const displaySupply = project?.supply ?? 10_000
@@ -928,9 +945,9 @@ export function ProjectDetail() {
         {/* ─── On-Chain Contract (full width, bottom) ─── */}
         {hasContract && contractAddress && (() => {
           const explorerBase =
-            contractInfo.chainId === 11155111 ? "https://sepolia.etherscan.io" :
-            contractInfo.chainId === 964       ? "https://taostats.io"         :
-            contractInfo.chainId === 945       ? "https://test.taostats.io"    : null
+            onChainStatus?.chainId === 11155111 ? "https://sepolia.etherscan.io" :
+            onChainStatus?.chainId === 964       ? "https://taostats.io"         :
+            onChainStatus?.chainId === 945       ? "https://test.taostats.io"    : null
 
           const contractUrl = explorerBase ? `${explorerBase}/address/${contractAddress}` : null
           const totalPhases = (onChainPhases as OnChainPhase[] | undefined)?.length ?? 0
@@ -970,7 +987,7 @@ export function ProjectDetail() {
                 <div className="rounded-xl bg-white/5 border border-white/10 p-3">
                   <p className="text-[10px] text-gray-500 mb-1">Minted</p>
                   <p className="text-sm font-bold text-white">
-                    {Number(onChainTotalMinted ?? 0).toLocaleString()}
+                    {(onChainTotalMinted ?? 0).toLocaleString()}
                     <span className="text-gray-500 font-normal"> / {project.supply.toLocaleString()}</span>
                   </p>
                 </div>

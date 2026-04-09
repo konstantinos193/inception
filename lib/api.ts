@@ -161,6 +161,45 @@ export async function checkAllowlist(
   return res.json();
 }
 
+// ─── On-Chain Status (via backend RPC) ──────────────────────────
+
+export interface BackendPhase {
+  index: number
+  name: string
+  status: "active" | "upcoming" | "completed"
+  price: string
+  maxPerWallet: number
+  maxSupply: number
+  minted: number
+  merkleRoot: `0x${string}`
+  startTime: number
+  endTime: number
+  paused: boolean
+}
+
+export interface OnChainStatus {
+  deployed: boolean
+  contractAddress?: string
+  chainId?: number
+  onChain?: {
+    totalMinted: number
+    maxSupply: number
+    totalPhases: number
+    transfersLocked: boolean
+    phases: BackendPhase[]
+  }
+}
+
+export async function fetchOnChainStatus(slug: string): Promise<OnChainStatus> {
+  try {
+    const res = await fetch(`${API_URL}/api/sync/${slug}/status`)
+    if (!res.ok) return { deployed: false }
+    return res.json()
+  } catch {
+    return { deployed: false }
+  }
+}
+
 // ─── Contracts ───────────────────────────────────────────────────
 
 export async function fetchContractAddress(slug: string): Promise<{
