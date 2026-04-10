@@ -283,12 +283,12 @@ export function ProjectDetail() {
   useEffect(() => {
     if (!slug) return
 
-    const loadRecentlyMinted = async () => {
+    const loadRecentlyMinted = async (showSpinner: boolean) => {
       try {
-        setLoadingNFTs(true)
+        if (showSpinner) setLoadingNFTs(true)
         const nfts = await fetchRecentlyMinted(slug)
         setRecentlyMinted(nfts)
-        
+
         // Load rarity data for each NFT
         const rarityMap = new Map<number, NFTRarity>()
         for (const nft of nfts) {
@@ -302,16 +302,17 @@ export function ProjectDetail() {
         setNftRarityData(rarityMap)
       } catch (error) {
         console.error("Failed to load recently minted NFTs:", error)
-        setRecentlyMinted([])
+        if (showSpinner) setRecentlyMinted([])
       } finally {
-        setLoadingNFTs(false)
+        if (showSpinner) setLoadingNFTs(false)
       }
     }
 
-    loadRecentlyMinted()
+    // Initial load shows the spinner
+    loadRecentlyMinted(true)
 
-    // Refresh recently minted NFTs every 30 seconds
-    const interval = setInterval(loadRecentlyMinted, 30000)
+    // Background polling refreshes silently (no spinner)
+    const interval = setInterval(() => loadRecentlyMinted(false), 30000)
     return () => clearInterval(interval)
   }, [slug])
 
