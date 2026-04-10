@@ -7,7 +7,25 @@ import { wagmiConfig, wagmiAdapter, bittensor, projectId } from "@/lib/wagmi"
 
 const queryClient = new QueryClient()
 
-createAppKit({
+// Handle wallet provider conflicts
+if (typeof window !== 'undefined') {
+  // Prevent multiple wallet extensions from conflicting
+  const originalEthereum = window.ethereum
+  Object.defineProperty(window, 'ethereum', {
+    set: function(value) {
+      if (!originalEthereum) {
+        originalEthereum = value
+      }
+    },
+    get: function() {
+      return originalEthereum
+    },
+    configurable: true
+  })
+}
+
+try {
+  createAppKit({
   adapters: [wagmiAdapter],
   projectId,
   networks: [bittensor],
@@ -15,8 +33,8 @@ createAppKit({
   metadata: {
     name: "Elevate",
     description: "A Pre-Sale Ordinals & Runes Launchpad on Bittensor",
-    url: "https://elevate.xyz",
-    icons: ["https://elevate.xyz/logo.png"],
+    url: "https://elevate.chunkiesgaming.com",
+    icons: ["https://elevate.chunkiesgaming.com/logo.png"],
   },
   features: {
     analytics: false,
@@ -32,6 +50,9 @@ createAppKit({
     "--w3m-font-family": "system-ui, sans-serif",
   },
 })
+} catch (error) {
+  console.warn("Wallet initialization failed:", error)
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
