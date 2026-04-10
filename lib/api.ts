@@ -248,6 +248,21 @@ export async function fetchSignature(
   return res.json();
 }
 
+export async function fetchWalletPhaseMints(
+  slug: string,
+  phaseIndex: number,
+  wallet: string
+): Promise<number> {
+  try {
+    const res = await fetch(`${API_URL}/api/contracts/${slug}/wallet-mints/${phaseIndex}/${wallet}`);
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return data.minted ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 export async function recordOnChainMint(params: {
   slug: string;
   wallet: string;
