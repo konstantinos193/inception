@@ -21,9 +21,11 @@ import {
   fetchSignature,
   fetchOnChainStatus,
   checkAllowlist,
+  fetchRecentlyMinted,
   type Project,
   type AllowlistResult,
   type OnChainStatus,
+  type SampleNFT,
 } from "@/lib/api"
 import { TAO_NFT_ABI, type OnChainPhase } from "@/lib/contracts"
 import {
@@ -119,6 +121,8 @@ export function ProjectDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAllNFTs, setShowAllNFTs] = useState(false)
+  const [recentlyMinted, setRecentlyMinted] = useState<SampleNFT[]>([])
+  const [loadingNFTs, setLoadingNFTs] = useState(false)
 
   // ── Allowlist checker (API-based for projects without contract) ────────────
   const [alWallet, setAlWallet] = useState("")
@@ -271,6 +275,30 @@ export function ProjectDetail() {
 
     checkUserAllowlist()
   }, [connectedWallet, slug, activeOnChainPhase, selectedPhaseIndex])
+
+  // Load recently minted NFTs
+  useEffect(() => {
+    if (!slug) return
+
+    const loadRecentlyMinted = async () => {
+      try {
+        setLoadingNFTs(true)
+        const nfts = await fetchRecentlyMinted(slug, connectedWallet || undefined)
+        setRecentlyMinted(nfts)
+      } catch (error) {
+        console.error("Failed to load recently minted NFTs:", error)
+        setRecentlyMinted([])
+      } finally {
+        setLoadingNFTs(false)
+      }
+    }
+
+    loadRecentlyMinted()
+
+    // Refresh recently minted NFTs every 30 seconds
+    const interval = setInterval(loadRecentlyMinted, 30000)
+    return () => clearInterval(interval)
+  }, [slug, connectedWallet])
 
   // Timeout fallback for slow RPC
   const [txSubmitted, setTxSubmitted] = useState<boolean>(false)
@@ -539,7 +567,7 @@ export function ProjectDetail() {
     )
   }
 
-  const visibleNFTs = showAllNFTs ? project.sampleNFTs : project.sampleNFTs.slice(0, 6)
+  const visibleNFTs = showAllNFTs ? recentlyMinted : recentlyMinted.slice(0, 6)
 
   const statusMap: Record<string, { color: string; text: string }> = {
     live:     { color: "bg-green-500/20 text-green-400 border-green-500/30", text: "Live Now" },
@@ -950,33 +978,54 @@ export function ProjectDetail() {
             )}
 
             {/* NFT Gallery */}
-            {project.sampleNFTs.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="text-2xl font-bold text-white">Recently Minted</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {visibleNFTs.map((nft) => (
-                    <div key={nft._id} className="rounded-xl border border-white/10 bg-black/40 overflow-hidden">
-                      <div className="relative aspect-square">
-                        <Image src={nft.image} alt={nft.name} fill className="object-cover" />
-                      </div>
-                      <div className="p-3">
-                        <p className="text-sm font-medium text-white truncate mb-2">{nft.name}</p>
-                        <div className="flex items-center justify-between">
-                          <Badge className={`${getRarityColor(nft.rarity)} text-[10px] px-2 py-1`}>{nft.rarity}</Badge>
-                          <span className="text-[10px] text-gray-500 font-mono">{nft.mintedBy}</span>
+            <div className="space-y-4">
+              <h3 className="text-2xl font-bold text-white">Recently Minted</h3>
+              {loadingNFTs ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-white/40 animate-spin" />
+                </div>
+              ) : recentlyMinted.length > 0 ? (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 max-h-96 overflow-y-auto gap-4 pr-2">
+                    {visibleNFTs.map((nft) => (
+                      <div key={nft._id} className="rounded-xl border border-white/10 bg-black/40 overflow-hidden flex-shrink-0">
+                        <div className="relative aspect-square">
+                          <Image 
+                            src={nft.image} 
+                            alt={nft.name} 
+                            fill 
+                            className="object-cover"
+                            onError={(e) => {
+                              // Fallback to placeholder if image fails
+                              const target = e.target as HTMLImageElement;
+                              target.src = `/collections/chunks/pfp.jpg`;
+                            }}
+                          />
+                        </div>
+                        <div className="p-3">
+                          <p className="text-sm font-medium text-white truncate mb-2">{nft.name}</p>
+                          <div className="flex items-center justify-between">
+                            <Badge className={`${getRarityColor(nft.rarity)} text-[10px] px-2 py-1`}>{nft.rarity}</Badge>
+                            <span className="text-[10px] text-gray-500 font-mono">{nft.mintedBy.slice(0, 6)}...{nft.mintedBy.slice(-4)}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+                  {recentlyMinted.length > 6 && (
+                    <Button variant="outline" onClick={() => setShowAllNFTs(!showAllNFTs)}
+                      className={`w-full ${theme.textAccent} border-white/20 hover:bg-white/10`}>
+                      {showAllNFTs ? "Show Less" : `Show All (${recentlyMinted.length})`}
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">No NFTs minted yet</p>
+                  <p className="text-xs mt-1">Be the first to mint!</p>
                 </div>
-                {project.sampleNFTs.length > 6 && (
-                  <Button variant="outline" onClick={() => setShowAllNFTs(!showAllNFTs)}
-                    className={`w-full ${theme.textAccent} border-white/20 hover:bg-white/10`}>
-                    {showAllNFTs ? "Show Less" : `Show All (${project.sampleNFTs.length})`}
-                  </Button>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* ─── Right Column ─── */}
