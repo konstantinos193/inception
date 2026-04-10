@@ -286,7 +286,7 @@ export function ProjectDetail() {
     const loadRecentlyMinted = async () => {
       try {
         setLoadingNFTs(true)
-        const nfts = await fetchRecentlyMinted(slug, connectedWallet || undefined)
+        const nfts = await fetchRecentlyMinted(slug)
         setRecentlyMinted(nfts)
         
         // Load rarity data for each NFT
@@ -313,7 +313,7 @@ export function ProjectDetail() {
     // Refresh recently minted NFTs every 30 seconds
     const interval = setInterval(loadRecentlyMinted, 30000)
     return () => clearInterval(interval)
-  }, [slug, connectedWallet])
+  }, [slug])
 
   // Helper to get block explorer URL for NFT
   const getExplorerUrl = (tokenId: number) => {
