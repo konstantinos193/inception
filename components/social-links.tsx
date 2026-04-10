@@ -6,7 +6,7 @@ export function SocialLinks() {
     <div className="flex flex-col items-center">
       <h3 className="text-lg mb-4">Follow our journey</h3>
       <div className="flex space-x-6">
-        <SocialLink href="https://x.com/chunkiesgaming" icon={<X className="h-5 w-5" />} label="X" />
+        <SocialLink href="https://x.com/elevatelaunch" icon={<X className="h-5 w-5" />} label="X" />
         <SocialLink href="https://discord.gg/CcPpjUvNQj" icon={<MessageCircle className="h-5 w-5" />} label="Discord" />
       </div>
     </div>
