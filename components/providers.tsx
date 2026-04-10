@@ -3,15 +3,15 @@
 import { WagmiProvider } from "wagmi"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { createAppKit } from "@reown/appkit/react"
-import { wagmiConfig, wagmiAdapter, bittensor, bittensorTestnet, sepolia, hardhatLocal, projectId } from "@/lib/wagmi"
+import { wagmiConfig, wagmiAdapter, bittensor, projectId } from "@/lib/wagmi"
 
 const queryClient = new QueryClient()
 
 createAppKit({
   adapters: [wagmiAdapter],
   projectId,
-  networks: [sepolia, bittensor, bittensorTestnet, hardhatLocal],
-  defaultNetwork: sepolia,
+  networks: [bittensor],
+  defaultNetwork: bittensor,
   metadata: {
     name: "Elevate",
     description: "A Pre-Sale Ordinals & Runes Launchpad on Bittensor",

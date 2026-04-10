@@ -1,92 +1,38 @@
 {
-  "network": "sepolia",
-  "chainId": "11155111",
-  "deployedAt": "2026-04-10T08:34:37.903Z",
-  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "network": "bittensor",
+  "chainId": "964",
+  "deployedAt": "2026-04-10T12:55:00.000Z",
+  "deployer": "0xADa0De4e113F71Abab1018D3B78fF5BaC7960bf9",
   "collections": [
     {
-      "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-      "name": "Cosmic Creatures",
-      "symbol": "COSM",
-      "slug": "cosmic-creatures",
-      "maxSupply": 10000,
-      "reservedSupply": 100,
-      "globalMaxPerWallet": 20,
-      "royaltyBps": 500,
-      "platformBps": 250,
-      "phases": [
-        {
-          "index": 0,
-          "name": "Validator Holders",
-          "status": "completed",
-          "merkleRoot": "0xf35e9d99762091610714e20619de3e8500fee4eded1f5897d09ecc3904d25289",
-          "allowlist": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-            "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-            "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
-          ],
-          "price": "0.5",
-          "maxPerWallet": 3,
-          "maxSupply": 2000
-        },
-        {
-          "index": 1,
-          "name": "TAO Stakers",
-          "status": "completed",
-          "merkleRoot": "0x9810cfd68cd331c14cce6c90e4512fc9fe936582fb6fba9ddb0739c32ecac623",
-          "allowlist": [
-            "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-            "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-            "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-            "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-            "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
-            "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc"
-          ],
-          "price": "0.6",
-          "maxPerWallet": 5,
-          "maxSupply": 3000
-        },
-        {
-          "index": 2,
-          "name": "Public Mint",
-          "status": "active",
-          "merkleRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
-          "allowlist": [],
-          "price": "0.8",
-          "maxPerWallet": 10,
-          "maxSupply": 0
-        }
-      ]
-    },
-    {
-      "address": "0x9F1842cFAF0574C2eaeCC1289D2743d87Cfb54e0",
+      "address": "0x92f7888Ef8509330fc09D68A0235B7b54A62aac0",
       "name": "Chunks",
       "symbol": "CHUNK",
       "slug": "chunks",
       "maxSupply": 1000,
-      "reservedSupply": 20,
-      "globalMaxPerWallet": 10,
-      "royaltyBps": 500,
-      "platformBps": 250,
+      "reservedSupply": 0,
+      "globalMaxPerWallet": 0,
+      "royaltyBps": 400,
+      "platformBps": 0,
+      "baseURI": "https://explicit-landfowl-0es6x.lighthouseweb3.xyz/ipfs/bafybeifrzpbit6ci7jgl5naaveulhhgjqp7cyjk5ao4fnw7nhkon7mr3my/",
       "phases": [
         {
           "index": 0,
           "name": "Whitelist",
-          "status": "active",
-          "signer": "0xfF231B1987954429F1E6e3392a16A93b0bee63CB",
           "price": "0.01",
-          "maxPerWallet": 3,
-          "maxSupply": 500
+          "maxPerWallet": 10,
+          "maxSupply": 0,
+          "endTime": 0,
+          "signer": "0xADa0De4e113F71Abab1018D3B78fF5BaC7960bf9"
         },
         {
           "index": 1,
           "name": "Public Mint",
-          "status": "upcoming",
-          "signer": "0x0000000000000000000000000000000000000000",
           "price": "0.012",
-          "maxPerWallet": 5,
-          "maxSupply": 0
+          "maxPerWallet": 0,
+          "maxSupply": 0,
+          "endTime": 0,
+          "signer": "0x0000000000000000000000000000000000000000"
         }
       ]
     }

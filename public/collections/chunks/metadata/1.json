@@ -1,0 +1,29 @@
+{
+  "name": "Chunk #1",
+  "description": "A unique Chunk from the Chunks collection. This is the first chunk in the series.",
+  "image": "/collections/chunks/pfp.jpg",
+  "external_url": "https://tao-launchpad.com/collections/chunks/1",
+  "attributes": [
+    {
+      "trait_type": "Background",
+      "value": "Dark Blue"
+    },
+    {
+      "trait_type": "Body", 
+      "value": "Robot"
+    },
+    {
+      "trait_type": "Eyes",
+      "value": "Laser"
+    },
+    {
+      "trait_type": "Rarity",
+      "value": "Common"
+    }
+  ],
+  "rarity": {
+    "tier": "Common",
+    "score": "0.125000",
+    "rank": 1
+  }
+}

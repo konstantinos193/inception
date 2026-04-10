@@ -725,7 +725,7 @@ export function ProjectDetail() {
       return (
         <div className="space-y-2 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
           <p className="text-yellow-400 text-sm font-medium">Contract not yet deployed to this network</p>
-          <p className="text-gray-400 text-xs">Run <code className="bg-white/10 px-1 rounded">pnpm deploy:sepolia</code> in the contracts folder, then connect to Sepolia.</p>
+          <p className="text-gray-400 text-xs">Please connect to <strong>TAO Mainnet</strong> (chain 964) to mint.</p>
         </div>
       )
     }

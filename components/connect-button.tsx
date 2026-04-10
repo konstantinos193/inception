@@ -1,14 +1,14 @@
 "use client"
 
 import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react"
-import { sepolia } from "@/lib/wagmi"
+import { bittensor } from "@/lib/wagmi"
 
 export function ConnectButton() {
   const { open } = useAppKit()
   const { address, isConnected } = useAppKitAccount()
   const { chainId } = useAppKitNetwork()
 
-  const isCorrectNetwork = isConnected && chainId === sepolia.id
+  const isCorrectNetwork = isConnected && chainId === bittensor.id
 
   if (!isConnected) {
     return (
