@@ -1,0 +1,15 @@
+{
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "elevate.chunkiesgaming.com"
+        }
+      ],
+      "destination": "https://elevateart.xyz/$1",
+      "permanent": true
+    }
+  ]
+}

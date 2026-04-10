@@ -10,7 +10,7 @@ const queryClient = new QueryClient()
 // Handle wallet provider conflicts
 if (typeof window !== 'undefined') {
   // Prevent multiple wallet extensions from conflicting
-  const originalEthereum = window.ethereum
+  let originalEthereum = window.ethereum
   Object.defineProperty(window, 'ethereum', {
     set: function(value) {
       if (!originalEthereum) {
