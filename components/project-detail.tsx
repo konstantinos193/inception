@@ -245,6 +245,33 @@ export function ProjectDetail() {
   // How many has this wallet minted in the selected phase? — fetched from backend (backend reads chain)
   const [walletPhaseMinted, setWalletPhaseMinted] = useState<number>(0)
 
+  // Check if user is on allowlist for the active phase
+  const [userOnAllowlist, setUserOnAllowlist] = useState<boolean | null>(null)
+  const [userMaxAllowance, setUserMaxAllowance] = useState<number>(0)
+
+  // Check allowlist status when wallet or phase changes
+  useEffect(() => {
+    const checkUserAllowlist = async () => {
+      if (!connectedWallet || !activeOnChainPhase || activeOnChainPhase.signer === zeroAddress) {
+        setUserOnAllowlist(null)
+        setUserMaxAllowance(0)
+        return
+      }
+
+      try {
+        const result = await fetchSignature(slug, selectedPhaseIndex!, connectedWallet)
+        setUserOnAllowlist(result.allowed)
+        setUserMaxAllowance(result.maxAllowance)
+      } catch (error) {
+        console.error("Failed to check allowlist status:", error)
+        setUserOnAllowlist(false)
+        setUserMaxAllowance(0)
+      }
+    }
+
+    checkUserAllowlist()
+  }, [connectedWallet, slug, activeOnChainPhase, selectedPhaseIndex])
+
   // Timeout fallback for slow RPC
   const [txSubmitted, setTxSubmitted] = useState<boolean>(false)
   const [txSubmittedTime, setTxSubmittedTime] = useState<number>(0)
@@ -444,16 +471,22 @@ export function ProjectDetail() {
     }
   }
 
-  // ── Allowlist checker (legacy API) ────────────────────────────────────────
+  // ── Allowlist checker (on-chain API) ────────────────────────────────────────
   const handleCheckAllowlist = async () => {
     if (!alWallet.trim()) return
     setAlChecking(true)
     setAlResult(null)
     try {
-      const result = await checkAllowlist(slug, alWallet.trim())
-      setAlResult(result)
+      // Use the first active phase for checking, or phase 0 as fallback
+      const phaseToCheck = selectedPhaseIndex ?? 0
+      const result = await fetchSignature(slug, phaseToCheck, alWallet.trim())
+      setAlResult({ 
+        wallet: alWallet.trim(), 
+        allowed: result.allowed,
+        maxAllowance: result.maxAllowance
+      })
     } catch {
-      setAlResult({ wallet: alWallet, allowed: false })
+      setAlResult({ wallet: alWallet.trim(), allowed: false })
     } finally {
       setAlChecking(false)
     }

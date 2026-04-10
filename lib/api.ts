@@ -80,6 +80,7 @@ export interface MintResult {
 export interface AllowlistResult {
   wallet: string;
   allowed: boolean;
+  maxAllowance?: number;
 }
 
 export interface MintHistoryEvent {
