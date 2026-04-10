@@ -340,7 +340,7 @@ export function ProjectDetail() {
       const chainGasCap = BigInt(16_000_000) // safe under any EVM (Sepolia 16.7M, Bittensor similar)
       gas = buffered > chainGasCap ? chainGasCap : buffered
     } catch {
-      // estimation failed — let the wallet decide
+      gas = BigInt(500_000) // estimation failed — use safe fallback
     }
 
     try {
