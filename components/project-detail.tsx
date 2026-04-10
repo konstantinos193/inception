@@ -22,10 +22,12 @@ import {
   fetchOnChainStatus,
   checkAllowlist,
   fetchRecentlyMinted,
+  fetchNFTRarity,
   type Project,
   type AllowlistResult,
   type OnChainStatus,
   type SampleNFT,
+  type NFTRarity,
 } from "@/lib/api"
 import { TAO_NFT_ABI, type OnChainPhase } from "@/lib/contracts"
 import {
@@ -123,6 +125,7 @@ export function ProjectDetail() {
   const [showAllNFTs, setShowAllNFTs] = useState(false)
   const [recentlyMinted, setRecentlyMinted] = useState<SampleNFT[]>([])
   const [loadingNFTs, setLoadingNFTs] = useState(false)
+  const [nftRarityData, setNftRarityData] = useState<Map<number, NFTRarity>>(new Map())
 
   // ── Allowlist checker (API-based for projects without contract) ────────────
   const [alWallet, setAlWallet] = useState("")
@@ -285,6 +288,18 @@ export function ProjectDetail() {
         setLoadingNFTs(true)
         const nfts = await fetchRecentlyMinted(slug, connectedWallet || undefined)
         setRecentlyMinted(nfts)
+        
+        // Load rarity data for each NFT
+        const rarityMap = new Map<number, NFTRarity>()
+        for (const nft of nfts) {
+          try {
+            const rarity = await fetchNFTRarity(slug, nft.tokenId)
+            rarityMap.set(nft.tokenId, rarity)
+          } catch (error) {
+            console.warn(`Failed to load rarity for NFT ${nft.tokenId}:`, error)
+          }
+        }
+        setNftRarityData(rarityMap)
       } catch (error) {
         console.error("Failed to load recently minted NFTs:", error)
         setRecentlyMinted([])
@@ -299,6 +314,27 @@ export function ProjectDetail() {
     const interval = setInterval(loadRecentlyMinted, 30000)
     return () => clearInterval(interval)
   }, [slug, connectedWallet])
+
+  // Helper to get block explorer URL for NFT
+  const getExplorerUrl = (tokenId: number) => {
+    if (!contractAddress) return null
+    
+    const explorerBase = 
+      chainId === 11155111 ? "https://sepolia.etherscan.io" :
+      chainId === 964 ? "https://taostats.io" :
+      chainId === 945 ? "https://test.taostats.io" :
+      "https://etherscan.io"
+    
+    return `${explorerBase}/token/${contractAddress}?a=${tokenId}`
+  }
+
+  // Handle NFT click - open in block explorer
+  const handleNFTClick = (tokenId: number) => {
+    const explorerUrl = getExplorerUrl(tokenId)
+    if (explorerUrl) {
+      window.open(explorerUrl, '_blank', 'noopener,noreferrer')
+    }
+  }
 
   // Timeout fallback for slow RPC
   const [txSubmitted, setTxSubmitted] = useState<boolean>(false)
@@ -988,26 +1024,49 @@ export function ProjectDetail() {
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-3 max-h-96 overflow-y-auto gap-4 pr-2">
                     {visibleNFTs.map((nft) => (
-                      <div key={nft._id} className="rounded-xl border border-white/10 bg-black/40 overflow-hidden flex-shrink-0">
+                      <div 
+                        key={nft._id} 
+                        className="rounded-xl border border-white/10 bg-black/40 overflow-hidden flex-shrink-0 cursor-pointer hover:border-white/20 transition-colors group"
+                        onClick={() => handleNFTClick(nft.tokenId)}
+                        title={`View ${nft.name} on block explorer`}
+                      >
                         <div className="relative aspect-square">
                           <Image 
                             src={nft.image} 
                             alt={nft.name} 
                             fill 
-                            className="object-cover"
+                            className="object-cover group-hover:scale-105 transition-transform duration-300"
                             onError={(e) => {
                               // Fallback to placeholder if image fails
                               const target = e.target as HTMLImageElement;
                               target.src = `/collections/chunks/pfp.jpg`;
                             }}
+                            unoptimized={nft.image?.startsWith('data:') || nft.image?.startsWith('ipfs://')}
                           />
+                          {/* Hover overlay */}
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                            <ExternalLink className="w-6 h-6 text-white" />
+                          </div>
                         </div>
                         <div className="p-3">
                           <p className="text-sm font-medium text-white truncate mb-2">{nft.name}</p>
-                          <div className="flex items-center justify-between">
+                          <div className="flex items-center justify-between mb-2">
                             <Badge className={`${getRarityColor(nft.rarity)} text-[10px] px-2 py-1`}>{nft.rarity}</Badge>
                             <span className="text-[10px] text-gray-500 font-mono">{nft.mintedBy.slice(0, 6)}...{nft.mintedBy.slice(-4)}</span>
                           </div>
+                          {/* Rarity Score Display */}
+                          {nftRarityData.has(nft.tokenId) && (
+                            <div className="flex items-center justify-between text-xs">
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-400">Rank:</span>
+                                <span className="text-white font-mono">#{nftRarityData.get(nft.tokenId)!.nft.rarity_rank}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-400">Score:</span>
+                                <span className="text-purple-400 font-mono">{nftRarityData.get(nft.tokenId)!.nft.rarity_score.toFixed(4)}</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}

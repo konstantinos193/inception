@@ -469,3 +469,89 @@ export async function fetchValidators(): Promise<Validator[]> {
   const data = await res.json();
   return data.data;
 }
+
+// Rarity API types
+export interface RarityData {
+  token_id: number;
+  rarity_score: number;
+  rarity_rank: number;
+  rarity_tier: string;
+  trait_rarities: Record<string, {
+    value: string;
+    frequency: number;
+    rarity: number;
+    rarityPercent: string;
+  }>;
+  created_at: string;
+}
+
+export interface RarityStats {
+  distribution: Array<{
+    rarity_tier: string;
+    count: number;
+    percentage: number;
+  }>;
+  statistics: {
+    total: number;
+    averageScore: number;
+    minScore: number;
+    maxScore: number;
+    medianScore: number;
+  };
+  topNFTs: Array<{
+    token_id: number;
+    rarity_score: number;
+    rarity_rank: number;
+    rarity_tier: string;
+  }>;
+}
+
+export interface NFTRarity {
+  nft: RarityData;
+  collectionStats: {
+    total: number;
+    averageScore: number;
+    minScore: number;
+    maxScore: number;
+    percentile: string;
+  };
+}
+
+// Rarity API functions
+export async function fetchRarityData(slug: string, options?: {
+  limit?: number;
+  offset?: number;
+  sortBy?: 'rarity_rank' | 'rarity_score' | 'token_id' | 'rarity_tier';
+  order?: 'asc' | 'desc';
+}): Promise<{ nfts: RarityData[]; pagination: any }> {
+  const params = new URLSearchParams({
+    limit: (options?.limit || 50).toString(),
+    offset: (options?.offset || 0).toString(),
+    sortBy: options?.sortBy || 'rarity_rank',
+    order: options?.order || 'asc'
+  });
+
+  const res = await fetch(`${API_URL}/api/rarity/${slug}?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch rarity data");
+  return res.json();
+}
+
+export async function fetchNFTRarity(slug: string, tokenId: number): Promise<NFTRarity> {
+  const res = await fetch(`${API_URL}/api/rarity/${slug}/${tokenId}`);
+  if (!res.ok) throw new Error("Failed to fetch NFT rarity");
+  return res.json();
+}
+
+export async function fetchRarityStats(slug: string): Promise<RarityStats> {
+  const res = await fetch(`${API_URL}/api/rarity/${slug}/stats`);
+  if (!res.ok) throw new Error("Failed to fetch rarity stats");
+  return res.json();
+}
+
+export async function calculateRarity(slug: string): Promise<{ message: string; status: string }> {
+  const res = await fetch(`${API_URL}/api/rarity/${slug}/calculate`, {
+    method: "POST"
+  });
+  if (!res.ok) throw new Error("Failed to calculate rarity");
+  return res.json();
+}
