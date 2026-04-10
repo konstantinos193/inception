@@ -321,7 +321,7 @@ export function ProjectDetail() {
     
     const explorerBase = 
       chainId === 11155111 ? "https://sepolia.etherscan.io" :
-      chainId === 964 ? "https://taostats.io" :
+      chainId === 964 ? "https://evm.taostats.io" :
       chainId === 945 ? "https://test.taostats.io" :
       "https://etherscan.io"
     
@@ -1205,7 +1205,7 @@ export function ProjectDetail() {
         {hasContract && contractAddress && (() => {
           const explorerBase =
             onChainStatus?.chainId === 11155111 ? "https://sepolia.etherscan.io" :
-            onChainStatus?.chainId === 964       ? "https://taostats.io"         :
+            onChainStatus?.chainId === 964       ? "https://evm.taostats.io"         :
             onChainStatus?.chainId === 945       ? "https://test.taostats.io"    : null
 
           const contractUrl = explorerBase ? `${explorerBase}/address/${contractAddress}` : null
