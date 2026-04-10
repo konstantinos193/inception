@@ -1,7 +1,7 @@
 {
   "network": "sepolia",
   "chainId": "11155111",
-  "deployedAt": "2026-04-09T19:09:36.494Z",
+  "deployedAt": "2026-04-10T08:34:37.903Z",
   "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
   "collections": [
     {
@@ -60,7 +60,7 @@
       ]
     },
     {
-      "address": "0xCC68788E5CCEF183b6c1104C85387586d2fFfCaD",
+      "address": "0x9F1842cFAF0574C2eaeCC1289D2743d87Cfb54e0",
       "name": "Chunks",
       "symbol": "CHUNK",
       "slug": "chunks",

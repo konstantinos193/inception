@@ -35,8 +35,43 @@ import {
   usePublicClient,
 } from "wagmi"
 import { useAppKit } from "@reown/appkit/react"
-import { formatUnits, parseUnits, zeroAddress } from "viem"
-import { recordOnChainMint, fetchWalletPhaseMints } from "@/lib/api"
+import { formatUnits, parseUnits, zeroAddress, decodeErrorResult } from "viem"
+import { 
+  recordOnChainMint, 
+  fetchWalletPhaseMints,
+  submitMintForConfirmation,
+  getTransactionStatus,
+} from "@/lib/api"
+
+// ─── Contract error → human message ───────────────────────────────────────────
+const CONTRACT_ERRORS: Record<string, string> = {
+  MintGloballyPaused:       "Minting is globally paused.",
+  PhasePausedError:         "This phase is currently paused.",
+  PhaseNotStarted:          "This phase has not started yet.",
+  PhaseEnded:               "This phase has ended.",
+  ExceedsCollectionSupply:  "Collection is sold out.",
+  ExceedsPhaseSupply:       "Phase supply is exhausted.",
+  ExceedsPhaseWalletLimit:  "You have reached the max mints for this phase.",
+  ExceedsGlobalWalletLimit: "You have reached the max mints for this collection.",
+  InvalidSignature:         "Allowlist signature is invalid — please refresh and try again.",
+  InvalidQuantity:          "Invalid quantity.",
+  InsufficientPayment:      "Insufficient ETH sent.",
+  TokensLocked:             "Token transfers are currently locked.",
+  ReservedSupplyExceeded:   "Reserved supply exceeded.",
+}
+
+function decodeContractError(err: any, abi: any[]): string | null {
+  try {
+    // Viem wraps the revert data in err.cause.data or err.data
+    const data: `0x${string}` | undefined =
+      err?.cause?.data ?? err?.data ?? err?.cause?.cause?.data
+    if (!data || data === "0x") return null
+    const decoded = decodeErrorResult({ abi, data })
+    return CONTRACT_ERRORS[decoded.errorName] ?? `Contract error: ${decoded.errorName}`
+  } catch {
+    return null
+  }
+}
 
 // ─── Rarity Badge Colors ───────────────────────────────────────────
 function getRarityColor(rarity: string) {
@@ -210,6 +245,10 @@ export function ProjectDetail() {
   // How many has this wallet minted in the selected phase? — fetched from backend (backend reads chain)
   const [walletPhaseMinted, setWalletPhaseMinted] = useState<number>(0)
 
+  // Timeout fallback for slow RPC
+  const [txSubmitted, setTxSubmitted] = useState<boolean>(false)
+  const [txSubmittedTime, setTxSubmittedTime] = useState<number>(0)
+
   useEffect(() => {
     if (!hasContract || !connectedWallet || selectedPhaseIndex === null) {
       setWalletPhaseMinted(0)
@@ -244,7 +283,17 @@ export function ProjectDetail() {
       setSigData(null)
       return
     }
-    fetchSignature(slug, selectedPhaseIndex, connectedWallet).then(setSigData).catch(() => {
+    fetchSignature(slug, selectedPhaseIndex, connectedWallet).then((data) => {
+      console.log("[allowlist] signature response:", {
+        phaseIndex: selectedPhaseIndex,
+        wallet: connectedWallet,
+        allowed: data.allowed,
+        maxAllowance: data.maxAllowance,
+        hasSignature: !!data.signature,
+      })
+      setSigData(data)
+    }).catch((err) => {
+      console.error("[allowlist] fetchSignature failed:", err)
       setSigData({ signature: null, allowed: false, maxAllowance: 0 })
     })
   }, [isAllowlistPhase, connectedWallet, selectedPhaseIndex, slug])
@@ -269,38 +318,69 @@ export function ProjectDetail() {
 
   const { writeContractAsync, data: txHash, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract()
 
-  const { isLoading: isTxConfirming, isSuccess: isTxSuccess, data: txReceipt } = useWaitForTransactionReceipt({
-    hash: txHash,
-    query: { enabled: !!txHash },
-  })
+  const [txConfirmed, setTxConfirmed] = useState<boolean>(false)
+  const [txConfirming, setTxConfirming] = useState<boolean>(false)
 
-  // Update UI + sync DB after confirmed tx
   useEffect(() => {
-    if (isTxSuccess && txHash && activeOnChainPhase && selectedPhaseIndex !== null) {
-      setMintSuccess({ txHash, quantity: mintQuantity })
-      setMintError(null)
-      loadOnChainStatus()
-      // Refresh wallet phase mints from chain
-      if (connectedWallet) {
-        fetchWalletPhaseMints(slug, selectedPhaseIndex, connectedWallet).then(setWalletPhaseMinted)
-      }
-      recordOnChainMint({
+    if (txHash && activeOnChainPhase && selectedPhaseIndex !== null && !txConfirmed) {
+      setTxConfirming(true)
+      
+      submitMintForConfirmation({
+        txHash,
+        chainId,
         slug,
         wallet: connectedWallet ?? "",
-        txHash,
         quantity: mintQuantity,
         phaseIndex: selectedPhaseIndex,
         phaseName: activeOnChainPhase.name,
-        priceEach: Number(fmt(activeOnChainPhase.price)),
+        priceEach: Number(activeOnChainPhase.price),
+      }).then(() => {
+        const pollInterval = setInterval(async () => {
+          try {
+            const status = await getTransactionStatus({
+              txHash,
+              chainId,
+              network: chainId === 11155111 ? "sepolia" : 
+                      chainId === 964 ? "mainnet" : 
+                      chainId === 945 ? "testnet" : "mainnet"
+            })
+            
+            if (status.confirmed) {
+              setTxConfirmed(true)
+              setTxConfirming(false)
+              clearInterval(pollInterval)
+              
+              setMintSuccess({ txHash, quantity: mintQuantity })
+              setMintError(null)
+              loadOnChainStatus()
+              
+              if (connectedWallet) {
+                fetchWalletPhaseMints(slug, selectedPhaseIndex, connectedWallet).then(setWalletPhaseMinted)
+              }
+            }
+          } catch (error) {
+            console.error("Error checking transaction status:", error)
+          }
+        }, 2000) // Poll every 2 seconds
+        
+        setTimeout(() => {
+          clearInterval(pollInterval)
+          setTxConfirming(false)
+        }, 60000)
+        
+        return () => clearInterval(pollInterval)
+      }).catch(() => {
+        setTxConfirming(false)
       })
-      setMintQuantity(1)
     }
-  }, [isTxSuccess, txHash])
+  }, [txHash, activeOnChainPhase, selectedPhaseIndex, slug, connectedWallet, mintQuantity, txConfirmed])
 
-  // Surface write errors
   useEffect(() => {
     if (writeError) {
-      const msg = (writeError as { shortMessage?: string })?.shortMessage
+      const decoded = decodeContractError(writeError, TAO_NFT_ABI)
+      console.error("[mint] writeError:", writeError)
+      const msg = decoded
+        ?? (writeError as { shortMessage?: string })?.shortMessage
         ?? writeError.message
         ?? "Transaction failed"
       setMintError(msg)
@@ -329,7 +409,7 @@ export function ProjectDetail() {
       value: totalCost,
     }
 
-    // Estimate gas dynamically — apply 20% buffer then cap at chain gas limit
+    // Estimate gas — if this throws, the tx WILL revert. Decode why and bail early.
     let gas: bigint | undefined
     try {
       const estimated = await publicClient.estimateContractGas({
@@ -337,16 +417,30 @@ export function ProjectDetail() {
         account: connectedWallet,
       })
       const buffered = (estimated * BigInt(120)) / BigInt(100)
-      const chainGasCap = BigInt(16_000_000) // safe under any EVM (Sepolia 16.7M, Bittensor similar)
+      const chainGasCap = BigInt(16_000_000)
       gas = buffered > chainGasCap ? chainGasCap : buffered
-    } catch {
-      gas = BigInt(500_000) // estimation failed — use safe fallback
+      console.log("[mint] gas estimate:", estimated.toString(), "→ using:", gas.toString())
+    } catch (estimateErr: any) {
+      const decoded = decodeContractError(estimateErr, TAO_NFT_ABI)
+      console.error("[mint] estimateContractGas failed:", estimateErr)
+      console.error("[mint] decoded revert:", decoded)
+      setMintError(decoded ?? estimateErr?.shortMessage ?? estimateErr?.message ?? "Simulation failed — check phase status and try again.")
+      return // ← do NOT submit a transaction that will fail on-chain
     }
 
     try {
+      console.log("[mint] submitting tx", {
+        phaseIndex: selectedPhaseIndex,
+        quantity: mintQuantity,
+        maxAllowance: wlMaxAllowance,
+        value: totalCost.toString(),
+        gas: gas.toString(),
+      })
       await writeContractAsync({ ...mintArgs, gas })
     } catch (err: any) {
-      setMintError(err?.shortMessage ?? err?.message ?? "Mint failed")
+      const decoded = decodeContractError(err, TAO_NFT_ABI)
+      console.error("[mint] writeContractAsync failed:", err)
+      setMintError(decoded ?? err?.shortMessage ?? err?.message ?? "Mint failed")
     }
   }
 
@@ -378,7 +472,7 @@ export function ProjectDetail() {
 
   const displayCurrency = project?.currency ?? "TAO"
 
-  const isMinting = isWritePending || isTxConfirming
+  const isMinting = isWritePending || txConfirming
   const canMint = hasContract
     ? (isConnected
         && selectedPhaseIndex !== null
@@ -737,7 +831,7 @@ export function ProjectDetail() {
           )}
         </Button>
 
-        {txHash && !isTxSuccess && (
+        {txHash && !txConfirmed && (
           <p className="text-[10px] text-gray-500 text-center truncate">
             TX: {txHash.slice(0, 10)}…{txHash.slice(-8)}
           </p>
