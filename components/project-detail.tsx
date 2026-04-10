@@ -143,8 +143,8 @@ export function ProjectDetail() {
   const { open: openWalletModal } = useAppKit()
   const publicClient = usePublicClient()
 
-  // Bittensor chains (mainnet 964, testnet 945) use 9 decimals (rao); all others use 18
-  const nativeDecimals = (chainId === 964 || chainId === 945) ? 9 : 18
+  // TAO EVM uses 18 decimals (1 TAO = 1e18 wei), same as ETH
+  const nativeDecimals = 18
   const fmt = (wei: bigint) => formatUnits(wei, nativeDecimals)
 
   // On-chain status fetched from backend (backend makes the RPC call, not the frontend)
