@@ -32,6 +32,7 @@ import {
   useWriteContract,
   useWaitForTransactionReceipt,
   useBalance,
+  usePublicClient,
 } from "wagmi"
 import { useAppKit } from "@reown/appkit/react"
 import { formatUnits, parseUnits, zeroAddress } from "viem"
@@ -98,6 +99,7 @@ export function ProjectDetail() {
   const { address: connectedWallet, isConnected } = useAccount()
   const chainId = useChainId()
   const { open: openWalletModal } = useAppKit()
+  const publicClient = usePublicClient()
 
   // Bittensor chains (mainnet 964, testnet 945) use 9 decimals (rao); all others use 18
   const nativeDecimals = (chainId === 964 || chainId === 945) ? 9 : 18
@@ -265,7 +267,7 @@ export function ProjectDetail() {
 
   // ── Write contract ─────────────────────────────────────────────────────────
 
-  const { writeContract, data: txHash, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract()
+  const { writeContractAsync, data: txHash, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract()
 
   const { isLoading: isTxConfirming, isSuccess: isTxSuccess, data: txReceipt } = useWaitForTransactionReceipt({
     hash: txHash,
@@ -307,25 +309,45 @@ export function ProjectDetail() {
 
   // ── Mint handler ───────────────────────────────────────────────────────────
 
-  const handleOnChainMint = () => {
-    if (!contractAddress || selectedPhaseIndex === null || !activeOnChainPhase) return
+  const handleOnChainMint = async () => {
+    if (!contractAddress || selectedPhaseIndex === null || !activeOnChainPhase || !publicClient) return
     setMintError(null)
     setMintSuccess(null)
     resetWrite()
 
     const totalCost = activeOnChainPhase.price * BigInt(mintQuantity)
-    writeContract({
+    const mintArgs = {
       address: contractAddress,
       abi: TAO_NFT_ABI,
-      functionName: "mint",
+      functionName: "mint" as const,
       args: [
         BigInt(selectedPhaseIndex),
         BigInt(mintQuantity),
         mintSignature as `0x${string}`,
         BigInt(wlMaxAllowance),
-      ],
+      ] as const,
       value: totalCost,
-    })
+    }
+
+    // Estimate gas dynamically — apply 20% buffer then cap at chain gas limit
+    let gas: bigint | undefined
+    try {
+      const estimated = await publicClient.estimateContractGas({
+        ...mintArgs,
+        account: connectedWallet,
+      })
+      const buffered = (estimated * BigInt(120)) / BigInt(100)
+      const chainGasCap = BigInt(16_000_000) // safe under any EVM (Sepolia 16.7M, Bittensor similar)
+      gas = buffered > chainGasCap ? chainGasCap : buffered
+    } catch {
+      // estimation failed — let the wallet decide
+    }
+
+    try {
+      await writeContractAsync({ ...mintArgs, gas })
+    } catch (err: any) {
+      setMintError(err?.shortMessage ?? err?.message ?? "Mint failed")
+    }
   }
 
   // ── Allowlist checker (legacy API) ────────────────────────────────────────
