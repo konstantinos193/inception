@@ -1216,6 +1216,9 @@ export function ProjectDetail() {
           const contractUrl = explorerBase ? `${explorerBase}/address/${contractAddress}` : null
           const totalPhases = (onChainPhases as OnChainPhase[] | undefined)?.length ?? 0
           const transfersLocked = onChainTransfersLocked as boolean | undefined
+          const owner = onChainStatus?.onChain?.owner
+          const royaltyBps = onChainStatus?.onChain?.royaltyBps
+          const royaltyPct = royaltyBps !== undefined && royaltyBps !== null && !isNaN(royaltyBps) ? (royaltyBps / 100).toFixed(1) + "%" : "..."
 
           return (
             <div className={`mt-8 rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
@@ -1232,37 +1235,47 @@ export function ProjectDetail() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-                {/* Address */}
-                <div className="col-span-2 sm:col-span-3 lg:col-span-2 rounded-xl bg-white/5 border border-white/10 p-3">
+              {/* Row 1 — address + creator (wider cells) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
                   <p className="text-[10px] text-gray-500 mb-1">Contract Address</p>
                   {contractUrl ? (
                     <a href={contractUrl} target="_blank" rel="noopener noreferrer"
-                      className={`font-mono text-xs text-white hover:${theme.textAccent} transition-colors flex items-center gap-1 break-all`}>
-                      {contractAddress.slice(0, 6)}…{contractAddress.slice(-4)}
+                      className={`font-mono text-xs text-white hover:${theme.textAccent} transition-colors flex items-center gap-1`}>
+                      {contractAddress.slice(0, 10)}…{contractAddress.slice(-8)}
                       <ExternalLink className="w-3 h-3 flex-shrink-0" />
                     </a>
                   ) : (
-                    <span className="font-mono text-xs text-white">{contractAddress.slice(0, 6)}…{contractAddress.slice(-4)}</span>
+                    <span className="font-mono text-xs text-white">{contractAddress.slice(0, 10)}…{contractAddress.slice(-8)}</span>
                   )}
                 </div>
 
-                {/* Minted */}
                 <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                  <p className="text-[10px] text-gray-500 mb-1">Minted</p>
-                  <p className="text-sm font-bold text-white">
-                    {(onChainTotalMinted ?? 0).toLocaleString()}
-                    <span className="text-gray-500 font-normal"> / {project.supply.toLocaleString()}</span>
-                  </p>
+                  <p className="text-[10px] text-gray-500 mb-1">Creator</p>
+                  {owner && explorerBase ? (
+                    <a href={`${explorerBase}/address/${owner}`} target="_blank" rel="noopener noreferrer"
+                      className={`font-mono text-xs text-white hover:${theme.textAccent} transition-colors flex items-center gap-1`}>
+                      {owner.slice(0, 10)}…{owner.slice(-8)}
+                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                    </a>
+                  ) : (
+                    <span className="font-mono text-xs text-gray-500">—</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Row 2 — metadata stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                  <p className="text-[10px] text-gray-500 mb-1">Royalty</p>
+                  <p className="text-sm font-bold text-white">{royaltyPct}</p>
                 </div>
 
-                {/* Phases */}
                 <div className="rounded-xl bg-white/5 border border-white/10 p-3">
                   <p className="text-[10px] text-gray-500 mb-1">Phases</p>
                   <p className="text-sm font-bold text-white">{totalPhases}</p>
                 </div>
 
-                {/* Transfer status */}
                 <div className="rounded-xl bg-white/5 border border-white/10 p-3">
                   <p className="text-[10px] text-gray-500 mb-1">Transfers</p>
                   <p className={`text-sm font-bold flex items-center gap-1 ${transfersLocked ? "text-yellow-400" : "text-green-400"}`}>
@@ -1272,7 +1285,6 @@ export function ProjectDetail() {
                   </p>
                 </div>
 
-                {/* Standard */}
                 <div className="rounded-xl bg-white/5 border border-white/10 p-3">
                   <p className="text-[10px] text-gray-500 mb-1">Standard</p>
                   <p className="text-xs font-bold text-white">ERC-721A</p>
