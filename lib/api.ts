@@ -214,18 +214,43 @@ export interface OnChainStatus {
     maxSupply: number
     totalPhases: number
     transfersLocked: boolean
+    owner: `0x${string}`
+    royaltyReceiver: `0x${string}`
+    royaltyBps: number   // out of 10000, e.g. 500 = 5%
     phases: BackendPhase[]
   }
 }
 
 export async function fetchOnChainStatus(slug: string): Promise<OnChainStatus> {
-  try {
-    const res = await fetch(`${API_URL}/api/sync/${slug}/status`)
-    if (!res.ok) return { deployed: false }
-    return res.json()
-  } catch {
-    return { deployed: false }
+  const maxRetries = 3;
+  const baseDelay = 1000;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(`${API_URL}/api/sync/${slug}/status`)
+      
+      if (res.status === 503 || res.status >= 500) {
+        if (attempt < maxRetries) {
+          const delay = baseDelay * Math.pow(2, attempt);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        return { deployed: false }
+      }
+      
+      if (!res.ok) return { deployed: false }
+      return res.json()
+    } catch (error) {
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      return { deployed: false }
+    }
   }
+  
+  return { deployed: false }
 }
 
 // ─── Contracts ───────────────────────────────────────────────────
@@ -543,9 +568,34 @@ export async function fetchNFTRarity(slug: string, tokenId: number): Promise<NFT
 }
 
 export async function fetchRarityStats(slug: string): Promise<RarityStats> {
-  const res = await fetch(`${API_URL}/api/rarity/${slug}/stats`);
-  if (!res.ok) throw new Error("Failed to fetch rarity stats");
-  return res.json();
+  const maxRetries = 3;
+  const baseDelay = 1000;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(`${API_URL}/api/rarity/${slug}/stats`);
+      
+      if (res.status === 503 || res.status >= 500) {
+        if (attempt < maxRetries) {
+          const delay = baseDelay * Math.pow(2, attempt);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
+      
+      if (!res.ok) throw new Error("Failed to fetch rarity stats");
+      return res.json();
+    } catch (error) {
+      if (attempt < maxRetries) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error;
+    }
+  }
+  
+  throw new Error("Failed to fetch rarity stats after retries");
 }
 
 export async function calculateRarity(slug: string): Promise<{ message: string; status: string }> {
