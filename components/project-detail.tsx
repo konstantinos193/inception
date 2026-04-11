@@ -324,10 +324,17 @@ export function ProjectDetail() {
   const getExplorerUrl = (tokenId: number) => {
     if (!contractAddress) return null
     
+    // For TAO networks, use the /instance/ URL format
+    if (chainId === 964) {
+      return `https://evm.taostats.io/token/${contractAddress}/instance/${tokenId}`
+    }
+    if (chainId === 945) {
+      return `https://test.taostats.io/token/${contractAddress}/instance/${tokenId}`
+    }
+    
+    // For other networks, use the standard format
     const explorerBase = 
       chainId === 11155111 ? "https://sepolia.etherscan.io" :
-      chainId === 964 ? "https://evm.taostats.io" :
-      chainId === 945 ? "https://test.taostats.io" :
       "https://etherscan.io"
     
     return `${explorerBase}/token/${contractAddress}?a=${tokenId}`
@@ -1295,15 +1302,15 @@ export function ProjectDetail() {
               {/* Quick links row */}
               {explorerBase && (
                 <div className="flex flex-wrap gap-2 mt-4">
-                  <a href={`${explorerBase}/address/${contractAddress}#code`} target="_blank" rel="noopener noreferrer"
+                  <a href={`${explorerBase}/address/${contractAddress}?tab=contract`} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
                     <BarChart3 className="w-3 h-3" />Contract Code
                   </a>
-                  <a href={`${explorerBase}/address/${contractAddress}#events`} target="_blank" rel="noopener noreferrer"
+                  <a href={`${explorerBase}/address/${contractAddress}?tab=logs`} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
                     <TrendingUp className="w-3 h-3" />Events Log
                   </a>
-                  <a href={`${explorerBase}/address/${contractAddress}#internaltx`} target="_blank" rel="noopener noreferrer"
+                  <a href={`${explorerBase}/address/${contractAddress}?tab=txs`} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
                     <Zap className="w-3 h-3" />Transactions
                   </a>
