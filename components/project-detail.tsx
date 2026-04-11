@@ -663,7 +663,7 @@ export function ProjectDetail() {
                       : <Unlock className="w-3 h-3 text-gray-500 flex-shrink-0" title="Public phase" />}
                   </div>
                   <p className="text-xs text-gray-400 truncate">
-                    {phase.price === 0n ? "Free" : `${fmt(phase.price)} ${displayCurrency}`} · {phase.minted.toLocaleString()}/{phase.maxSupply > 0 ? phase.maxSupply.toLocaleString() : "8734;"}
+                    {phase.price === 0n ? "Free" : `${fmt(phase.price)} ${displayCurrency}`} · {phase.minted.toLocaleString()}/{phase.maxSupply > 0 ? phase.maxSupply.toLocaleString() : "8734"}
                   </p>
                 </div>
               </div>
