@@ -23,6 +23,7 @@ import {
   checkAllowlist,
   fetchRecentlyMinted,
   fetchNFTRarity,
+  fetchRarityStats,
   type Project,
   type AllowlistResult,
   type OnChainStatus,
@@ -289,16 +290,19 @@ export function ProjectDetail() {
         const nfts = await fetchRecentlyMinted(slug)
         setRecentlyMinted(nfts)
 
-        // Load rarity data for each NFT
+        // Load rarity data only if rarity has been calculated for this collection
         const rarityMap = new Map<number, NFTRarity>()
-        for (const nft of nfts) {
-          try {
-            const rarity = await fetchNFTRarity(slug, nft.tokenId)
-            rarityMap.set(nft.tokenId, rarity)
-          } catch (error) {
-            console.warn(`Failed to load rarity for NFT ${nft.tokenId}:`, error)
+        try {
+          const stats = await fetchRarityStats(slug)
+          if (stats.statistics.total > 0) {
+            for (const nft of nfts) {
+              try {
+                const rarity = await fetchNFTRarity(slug, nft.tokenId)
+                rarityMap.set(nft.tokenId, rarity)
+              } catch (_) { /* token not in rarity_data yet */ }
+            }
           }
-        }
+        } catch (_) { /* rarity stats not available */ }
         setNftRarityData(rarityMap)
       } catch (error) {
         console.error("Failed to load recently minted NFTs:", error)
