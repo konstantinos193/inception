@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 export function useDiscordInvite() {
-  const [inviteUrl, setInviteUrl] = useState('https://discord.gg/CcPpjUvNQj');
+  const [inviteUrl, setInviteUrl] = useState('https://discord.gg/vN25r7fMn3');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
