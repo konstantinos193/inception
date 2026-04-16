@@ -6,6 +6,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { fetchStats, type PlatformStats } from "@/lib/api"
+import { useDiscordInvite } from "@/hooks/useDiscordInvite"
 
 function formatNum(n: number): string {
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "K"
@@ -14,6 +15,7 @@ function formatNum(n: number): string {
 
 export function Hero() {
   const [stats, setStats] = useState<PlatformStats | null>(null)
+  const { inviteUrl, isLoading } = useDiscordInvite()
 
   useEffect(() => {
     fetchStats().then(setStats).catch(console.error)
@@ -77,7 +79,12 @@ export function Hero() {
               <ArrowRight className="ml-2 w-4 h-4" />
             </Button>
           </Link>
-          <a href="https://discord.com/channels/1454449246269997163/1454449248522469511" target="_blank" rel="noopener noreferrer">
+          <a 
+            href={inviteUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            title={isLoading ? "Loading fresh invite..." : "Launch Your NFT"}
+          >
             <Button
               variant="outline"
               size="lg"
