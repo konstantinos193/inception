@@ -35,7 +35,7 @@ export function ConnectButton() {
   return (
     <button
       onClick={() => open({ view: "Account" })}
-      className="px-4 py-1.5 text-sm font-medium bg-white/10 text-white border border-white/20 rounded-full hover:bg-white/20 transition-colors font-mono"
+      className="px-4 py-1.5 text-sm font-medium bg-transparent text-white border border-white/20 rounded-full hover:bg-white/10 transition-colors font-mono"
     >
       {address?.slice(0, 6)}...{address?.slice(-4)}
     </button>
