@@ -60,7 +60,7 @@ export default function CollectionsPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
       {/* Grid overlay */}
       <div
         className="fixed inset-0 z-0 opacity-[0.35] dark:opacity-[0.12]"
@@ -73,11 +73,11 @@ export default function CollectionsPage() {
 
       <Navbar />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-10 pt-28 pb-20">
+      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-10 pt-28 pb-20">
 
         {/* Header */}
         <div className="mb-12">
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-foreground/50 mb-4">
+          <p className="text-xs font-medium uppercase tracking-[0.15em] text-foreground/40 mb-4">
             Collections
           </p>
           <h1
@@ -85,14 +85,14 @@ export default function CollectionsPage() {
             style={{
               fontFamily: "var(--font-barlow), 'Arial Narrow', sans-serif",
               fontWeight: 800,
-              fontSize: "clamp(2.5rem, 6vw, 4rem)",
+              fontSize: "clamp(1.5rem, 6vw, 3.5rem)",
             }}
           >
-            <span style={{ color: "var(--electric-blue)" }}>DISCOVER</span>
-            <br />
-            <span className="text-foreground">EXCLUSIVE</span>
-            <br />
-            <span style={{ color: "var(--electric-blue)" }}>DROPS</span>
+            <div className="flex flex-wrap justify-center sm:justify-start gap-2 sm:gap-4">
+              <span style={{ color: "var(--electric-blue)" }}>DISCOVER</span>
+              <span className="text-foreground">EXCLUSIVE</span>
+              <span style={{ color: "var(--electric-blue)" }}>DROPS</span>
+            </div>
           </h1>
           <p className="text-foreground/60 text-sm max-w-xl">
             Curated NFT collections launching on Bittensor EVM. Verified creators, audited contracts, and transparent minting.
@@ -100,19 +100,19 @@ export default function CollectionsPage() {
         </div>
 
         {/* Filter tabs */}
-        <div className="flex items-center gap-2 mb-8 p-1 rounded-xl border border-border bg-card/30 backdrop-blur-sm">
+        <div className="flex items-center gap-1 mb-8 p-1 rounded-xl border border-border bg-card/30 backdrop-blur-sm overflow-x-auto">
           {tabs.map(tab => (
             <button
               key={tab.value}
               onClick={() => setSelectedStatus(tab.value)}
-              className="px-5 py-2 rounded-lg text-sm font-semibold uppercase tracking-wider transition-all"
+              className="px-3 py-2 rounded-lg text-xs sm:text-sm sm:px-5 font-semibold uppercase tracking-wider transition-all whitespace-nowrap"
               style={{
                 color: selectedStatus === tab.value ? "var(--electric-blue)" : "text-foreground/60",
                 background: selectedStatus === tab.value ? "color-mix(in srgb, var(--electric-blue) 10%, transparent)" : "transparent",
               }}
             >
               {tab.label}
-              <span className="ml-2 text-xs opacity-60">{tab.count}</span>
+              <span className="ml-1 sm:ml-2 text-xs opacity-60">{tab.count}</span>
             </button>
           ))}
         </div>

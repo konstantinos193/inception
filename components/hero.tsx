@@ -125,13 +125,13 @@ export function Hero() {
               href={inviteUrl}
               target="_blank"
               rel="noopener noreferrer"
-              title={isLoading ? "Loading fresh invite..." : "Get Whitelisted"}
+              title={isLoading ? "Loading fresh invite..." : "VIEW COLLECTIONS"}
             >
               <button
                 className="px-7 py-3 text-sm font-semibold uppercase tracking-wider bg-white text-black hover:bg-white/90 transition-colors"
                 style={{ borderRadius: "8px" }}
               >
-                Get Whitelisted
+                VIEW COLLECTIONS
               </button>
             </a>
             <a

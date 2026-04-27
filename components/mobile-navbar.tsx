@@ -20,7 +20,7 @@ export function MobileNavbar() {
 
   return (
     <nav className="fixed top-0 w-full z-50 transition-[transform,opacity] duration-300 ease-in-out will-change-transform translate-y-0 opacity-100">
-      <div className="max-w-7xl mx-auto px-6 lg:px-10">
+      <div className="max-w-7xl mx-auto px-4 lg:px-10">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="shrink-0 flex items-center">
@@ -33,12 +33,12 @@ export function MobileNavbar() {
 
           {/* Right side with blue border */}
           <div 
-            className="flex items-center gap-3 px-4 py-3 border-b rounded-b-xl backdrop-blur-md"
+            className="flex items-center gap-2 px-3 py-2 border-b rounded-b-xl backdrop-blur-md"
             style={{ borderColor: "var(--electric-blue)", boxShadow: "0 8px 32px rgba(0,0,0,0.35), 0 2px 16px rgba(76,159,252,0.08)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
           >
             <ConnectButton />
-            <button onClick={() => setIsOpen(!isOpen)} className="w-9 h-9 flex items-center justify-center text-foreground" aria-label="Toggle menu">
-              {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            <button onClick={() => setIsOpen(!isOpen)} className="w-8 h-8 flex items-center justify-center text-foreground flex-shrink-0" aria-label="Toggle menu">
+              {isOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
           </div>
         </div>
