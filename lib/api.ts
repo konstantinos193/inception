@@ -113,7 +113,8 @@ export async function fetchStats(): Promise<PlatformStats> {
 export async function fetchProjects(): Promise<Project[]> {
   const res = await fetch(`${API_URL}/api/projects`);
   if (!res.ok) throw new Error("Failed to fetch projects");
-  const projects = await res.json();
+  const response = await res.json();
+  const projects = response.data || response;
   return projects.map((project: any) => processProjectImages(project));
 }
 
@@ -121,7 +122,8 @@ export async function fetchProject(slug: string): Promise<Project | null> {
   const res = await fetch(`${API_URL}/api/projects/${slug}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("Failed to fetch project");
-  const project = await res.json();
+  const response = await res.json();
+  const project = response.data || response;
   return processProjectImages(project);
 }
 

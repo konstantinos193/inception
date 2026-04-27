@@ -15,7 +15,7 @@ createAppKit({
   metadata: {
     name: "Elevate",
     description: "TAO EVM NFT Launchpad — mint and collect on Bittensor",
-    url: "https://elevateart.xyz",
+    url: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
     icons: ["/logo.webp"],
   },
   features: {

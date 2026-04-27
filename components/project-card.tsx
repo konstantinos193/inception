@@ -56,6 +56,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
               fill
               className="object-cover"
               sizes="40px"
+              unoptimized
             />
           </div>
           <div>

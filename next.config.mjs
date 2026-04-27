@@ -7,14 +7,27 @@ try {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     ignoreBuildErrors: true,
   },
   images: {
     unoptimized: true,
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 828, 1080, 1200, 1920],
+    imageSizes: [48, 64, 96, 128, 256, 384],
+    remotePatterns: [
+      // Local backend (dev)
+      { protocol: "http", hostname: "localhost", port: "4000" },
+      // Production backend
+      { protocol: "https", hostname: "**.elevateart.xyz" },
+      // Common IPFS gateways for NFT metadata images
+      { protocol: "https", hostname: "ipfs.io" },
+      { protocol: "https", hostname: "**.ipfs.nftstorage.link" },
+      { protocol: "https", hostname: "nftstorage.link" },
+      { protocol: "https", hostname: "cloudflare-ipfs.com" },
+      { protocol: "https", hostname: "**.arweave.net" },
+      { protocol: "https", hostname: "arweave.net" },
+    ],
   },
   experimental: {
     webpackBuildWorker: true,

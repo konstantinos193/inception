@@ -1,40 +1,111 @@
 import "./globals.css"
-import { Inter } from "next/font/google"
+import { IBM_Plex_Sans, IBM_Plex_Mono, Barlow_Condensed, Goldman } from "next/font/google"
 import type React from "react"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { ClientProviders } from "@/components/client-providers"
+import { ThemeProvider } from "@/components/theme-provider"
 
-const inter = Inter({ subsets: ["latin"] })
+const ibmPlexSans = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-sans",
+})
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--font-mono",
+})
+const barlowCondensed = Barlow_Condensed({
+  subsets: ["latin"],
+  weight: ["700", "800"],
+  style: ["normal"],
+  variable: "--font-barlow",
+})
+const goldman = Goldman({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  variable: "--font-goldman",
+})
 
 export const metadata = {
-  title: "Elevate | NFT Launchpad on Bittensor",
-  description: "Discover, launch, and collect NFTs on Bittensor EVM — where art meets decentralized AI.",
-  icons: {
-    icon: '/logo.webp',
-    shortcut: '/logo.webp',
-    apple: '/logo.webp',
+  title: {
+    default: "Elevate | Premium NFT Launchpad on Bittensor EVM",
+    template: "%s | Elevate"
   },
+  description: "Curated excellence meets blockchain innovation. The premium NFT launchpad on Bittensor EVM - where verified creators launch exceptional collections.",
+  keywords: [
+    'NFT',
+    'digital art',
+    'Bittensor EVM',
+    'blockchain',
+    'cryptocurrency',
+    'NFT launchpad',
+    'launch NFT',
+    'mint NFT',
+    'TAO',
+    'Elevate',
+    'curated',
+    'verified',
+    'premium',
+    'Web3'
+  ],
+  authors: [{ name: 'Elevate Launchpad' }],
+  creator: 'Elevate Launchpad',
+  publisher: 'Elevate Launchpad',
+  category: 'technology',
+  classification: 'website',
+  referrer: 'origin-when-cross-origin',
   openGraph: {
     type: 'website',
+    locale: 'en_US',
     url: 'https://elevateart.xyz',
-    title: 'Elevate | NFT Launchpad on Bittensor',
-    description: 'Discover, launch, and collect NFTs on Bittensor EVM — where art meets decentralized AI.',
-    siteName: 'Elevate',
+    title: 'Elevate | Premium NFT Launchpad on Bittensor EVM',
+    description: 'Curated excellence meets blockchain innovation. The premium NFT launchpad on Bittensor EVM - where verified creators launch exceptional collections.',
+    siteName: 'Elevate Launchpad',
     images: [
       {
-        url: '/og-image.webp',
+        url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Elevate — NFT Launchpad on Bittensor',
+        alt: 'Elevate Launchpad - Premium NFT Launching on Bittensor EVM',
+        type: 'image/png',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Elevate | NFT Launchpad on Bittensor',
-    description: 'Discover, launch, and collect NFTs on Bittensor EVM — where art meets decentralized AI.',
-    images: ['/og-image.webp'],
+    title: 'Elevate | Premium NFT Launchpad on Bittensor EVM',
+    description: 'Curated excellence meets blockchain innovation. The premium NFT launchpad on Bittensor EVM - where verified creators launch exceptional collections.',
+    images: {
+      url: '/og-image.png',
+      alt: 'Elevate Launchpad - Premium NFT Launching on Bittensor EVM',
+    },
+    creator: '@ElevateArtXYZ',
+    site: '@ElevateArtXYZ',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  verification: {
+    google: 'your-google-verification-code',
+    yandex: 'your-yandex-verification-code',
+  },
+  alternates: {
+    canonical: 'https://elevateart.xyz',
+  },
+  other: {
+    'theme-color': '#000000',
+    'msapplication-TileColor': '#000000',
+    'msapplication-config': '/browserconfig.xml',
   },
 }
 
@@ -44,8 +115,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-        <body className={inter.className} style={{ backgroundColor: '#000000' }}>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/favicon.png" />
+        <link rel="manifest" href="/manifest.json" />
+      </head>
+      <body className={`${ibmPlexSans.variable} ${ibmPlexMono.variable} ${barlowCondensed.variable} ${goldman.variable} ${ibmPlexSans.className}`}>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           <ClientProviders>
             <Navbar />
             <main className="min-h-screen">
@@ -53,7 +129,8 @@ export default function RootLayout({
             </main>
             <Footer />
           </ClientProviders>
-        </body>
-      </html>
+        </ThemeProvider>
+      </body>
+    </html>
   )
 }

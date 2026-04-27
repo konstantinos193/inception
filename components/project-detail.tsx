@@ -5,16 +5,13 @@ import { useParams } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import {
-  ArrowLeft, ExternalLink, Users, TrendingUp, Clock, Calendar,
-  Globe, MessageCircle, Check, Flame, BarChart3, Wallet, Zap,
-  ChevronDown, ChevronUp, Layers, Star,
+  ExternalLink, Users, TrendingUp, Clock, Calendar,
+  Globe, MessageCircle, Check, BarChart3, Wallet, Zap,
   Loader2, AlertCircle, CheckCircle2, XCircle, Lock, Unlock,
 } from "lucide-react"
+import { IMAGE_SIZES } from "@/lib/collection-images"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
 import { getCollectionTheme, CollectionTheme } from "@/lib/collection-theme"
 import {
   fetchProject,
@@ -166,30 +163,8 @@ export function ProjectDetail() {
   }, [loadOnChainStatus])
 
   const contractAddress = (onChainStatus?.deployed ? onChainStatus.contractAddress : null) as `0x${string}` | null
-  const hasContract = !!(onChainStatus?.deployed && onChainStatus.chainId === chainId)
-
-  // ── Fetch off-chain project ────────────────────────────────────────────────
-  const loadProject = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const data = await fetchProject(slug)
-      if (!data) { setError("not_found"); return }
-      setProject(data)
-    } catch (err: unknown) {
-      setError((err as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }, [slug])
-
-  useEffect(() => { loadProject() }, [loadProject])
-
-  useEffect(() => {
-    if (!project || project.status !== "live" || hasContract) return
-    const id = setInterval(loadProject, 10_000)
-    return () => clearInterval(id)
-  }, [project?.status, loadProject, hasContract])
+  const hasContract = !!onChainStatus?.deployed
+  const onCorrectChain = onChainStatus?.chainId === chainId
 
   // ── Countdown ticker ───────────────────────────────────────────────────────
   const [nowSecs, setNowSecs] = useState(() => Math.floor(Date.now() / 1000))
@@ -223,6 +198,41 @@ export function ProjectDetail() {
   const onChainTransfersLocked: boolean | undefined = onChainStatus?.deployed
     ? onChainStatus.onChain?.transfersLocked
     : undefined
+
+  // Derive status from on-chain phases when available, otherwise fall back to DB status
+  const derivedStatus = useMemo(() => {
+    if (hasContract && onChainPhases && onChainPhases.length > 0) {
+      const hasActive = onChainPhases.some(p => phaseStatusFromTimestamps(p.startTime, p.endTime, nowSecs) === "active")
+      const hasUpcoming = onChainPhases.some(p => phaseStatusFromTimestamps(p.startTime, p.endTime, nowSecs) === "upcoming")
+      if (hasActive) return "live"
+      if (hasUpcoming) return "upcoming"
+      return "ended"
+    }
+    return project?.status ?? "ended"
+  }, [hasContract, onChainPhases, nowSecs, project?.status])
+
+  // ── Fetch off-chain project ────────────────────────────────────────────────
+  const loadProject = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await fetchProject(slug)
+      if (!data) { setError("not_found"); return }
+      setProject(data)
+    } catch (err: unknown) {
+      setError((err as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [slug])
+
+  useEffect(() => { loadProject() }, [loadProject])
+
+  useEffect(() => {
+    if (!project || project.status !== "live" || hasContract) return
+    const id = setInterval(loadProject, 10_000)
+    return () => clearInterval(id)
+  }, [project?.status, loadProject, hasContract])
 
   // ── Selected phase (user-chosen when multiple are active) ──────────────────
   const [selectedPhaseIndex, setSelectedPhaseIndex] = useState<number | null>(null)
@@ -574,7 +584,9 @@ export function ProjectDetail() {
     ? onChainTotalMinted
     : (project?.minted ?? 0)
 
-  const displaySupply = project?.supply ?? 10_000
+  const displaySupply = onChainStatus?.deployed && onChainStatus.onChain?.maxSupply !== undefined
+    ? onChainStatus.onChain.maxSupply
+    : (project?.supply ?? 10_000)
 
   const progress = displaySupply > 0 ? (displayMinted / displaySupply) * 100 : 0
 
@@ -584,6 +596,7 @@ export function ProjectDetail() {
   const isMinting = isWritePending || txConfirming
   const canMint = hasContract
     ? (isConnected
+        && onCorrectChain
         && selectedPhaseIndex !== null
         && !activeOnChainPhase?.paused
         && (walletOnAllowlist || !isAllowlistPhase)
@@ -595,21 +608,21 @@ export function ProjectDetail() {
   // ── Loading state ──────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--electric-blue)" }} />
       </div>
     )
   }
 
   if (error || !project) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-white mb-4">
+          <h1 className="text-4xl font-bold text-foreground mb-4">
             {error === "not_found" ? "Project Not Found" : "Error Loading Project"}
           </h1>
-          <p className="text-gray-400 mb-8">{error === "not_found" ? "This project doesn't exist." : error}</p>
-          <Link href="/"><Button className="bg-gradient-to-r from-purple-500 to-purple-600">Back to Launchpad</Button></Link>
+          <p className="text-foreground/60 mb-8">{error === "not_found" ? "This project doesn't exist." : error}</p>
+          <Link href="/"><Button style={{ backgroundColor: "var(--electric-blue)" }}>Back to Launchpad</Button></Link>
         </div>
       </div>
     )
@@ -622,7 +635,8 @@ export function ProjectDetail() {
     upcoming: { color: "bg-blue-500/20 text-blue-400 border-blue-500/30",   text: "Upcoming" },
     ended:    { color: "bg-gray-500/20 text-gray-400 border-gray-500/30",   text: "Ended" },
   }
-  const { color: statusColor, text: statusText } = statusMap[project.status] ?? statusMap.ended
+
+  const { color: statusColor, text: statusText } = statusMap[derivedStatus] ?? statusMap.ended
 
   // ── Render phases from on-chain data (if available) ────────────────────────
   const renderPhases = () => {
@@ -650,27 +664,27 @@ export function ProjectDetail() {
                 ? "border-green-500/20 bg-green-500/5 cursor-pointer hover:border-green-500/40 hover:bg-green-500/8"
                 : isDone
                 ? "border-purple-500/20 bg-purple-500/5"
-                : "border-gray-700/30 bg-gray-900/30"
+                : "border-border bg-card/30"
             }`}
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center ${
-                  isActive ? "bg-green-500/20" : isDone ? "bg-purple-500/20" : "bg-gray-700/20"
+                  isActive ? "bg-green-500/20" : isDone ? "bg-purple-500/20" : "bg-foreground/10"
                 }`}>
                   {isActive ? <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                    : isDone  ? <Check className="w-4 h-4 text-purple-400" />
-                   : <Clock className="w-4 h-4 text-gray-400" />}
+                   : <Clock className="w-4 h-4 text-foreground/40" />}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="font-semibold text-white text-sm">{phase.name}</p>
+                    <p className="font-semibold text-foreground text-sm">{phase.name}</p>
                     {phase.signer !== zeroAddress
-                      ? <Lock className="w-3 h-3 text-yellow-400 flex-shrink-0" tit1le="Allowlist required" />
-                      : <Unlock className="w-3 h-3 text-gray-500 flex-shrink-0" title="Public phase" />}
+                      ? <Lock className="w-3 h-3 text-yellow-400 flex-shrink-0" />
+                      : <Unlock className="w-3 h-3 text-foreground/30 flex-shrink-0" />}
                   </div>
-                  <p className="text-xs text-gray-400 truncate">
-                    {phase.price === 0n ? "Free" : `${fmt(phase.price)} ${displayCurrency}`} · {phase.minted.toLocaleString()}/{phase.maxSupply === 0 ? "\u221E" : phase.maxSupply.toLocaleString()}
+                  <p className="text-xs text-foreground/50 truncate">
+                    {phase.price === 0n ? "Free" : `${fmt(phase.price)} ${displayCurrency}`} · {(phase.minted ?? 0).toLocaleString()}/{phase.maxSupply === 0 ? "\u221E" : (phase.maxSupply ?? 0).toLocaleString()}
                   </p>
                 </div>
               </div>
@@ -682,10 +696,10 @@ export function ProjectDetail() {
                   <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px]">DONE</Badge>
                 )}
                 {secsLeft !== null && (
-                  <span className="text-[10px] text-gray-500 font-mono tabular-nums">ends {formatCountdown(secsLeft)}</span>
+                  <span className="text-[10px] text-foreground/40 font-mono tabular-nums">ends {formatCountdown(secsLeft)}</span>
                 )}
                 {secsUntil !== null && (
-                  <span className="text-[10px] text-gray-500 font-mono tabular-nums">in {formatCountdown(secsUntil)}</span>
+                  <span className="text-[10px] text-foreground/40 font-mono tabular-nums">in {formatCountdown(secsUntil)}</span>
                 )}
               </div>
             </div>
@@ -695,6 +709,9 @@ export function ProjectDetail() {
     }
 
     // Fall back to DB phases (no on-chain data)
+    if (!project.phases || !Array.isArray(project.phases)) {
+      return null
+    }
     return project.phases.map((phase, idx) => {
       const isActive    = phase.status === "active"
       const isCompleted = phase.status === "completed"
@@ -704,22 +721,22 @@ export function ProjectDetail() {
           className={`rounded-lg border p-3 ${
             isActive    ? "border-green-500/30 bg-green-500/5"
             : isCompleted ? "border-purple-500/20 bg-purple-500/5"
-            : "border-gray-700/30 bg-gray-900/30"
+            : "border-border bg-card/30"
           }`}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                isActive ? "bg-green-500/20" : isCompleted ? "bg-purple-500/20" : "bg-gray-700/20"
+                isActive ? "bg-green-500/20" : isCompleted ? "bg-purple-500/20" : "bg-foreground/10"
               }`}>
                 {isActive    ? <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                 : isCompleted ? <Check className="w-4 h-4 text-purple-400" />
-                : <Clock className="w-4 h-4 text-gray-400" />}
+                : <Clock className="w-4 h-4 text-foreground/40" />}
               </div>
               <div>
-                <p className="font-semibold text-white text-sm">{phase.name}</p>
-                <p className="text-xs text-gray-400">
-                  {phase.price} {project.currency} · {phase.minted.toLocaleString()}/{phase.supply || "∞"}
+                <p className="font-semibold text-foreground text-sm">{phase.name}</p>
+                <p className="text-xs text-foreground/50">
+                  {phase.price} {project.currency} · {(phase.minted ?? 0).toLocaleString()}/{phase.supply || "∞"}
                 </p>
               </div>
             </div>
@@ -737,18 +754,27 @@ export function ProjectDetail() {
       return (
         <div className="space-y-2 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
           <p className="text-yellow-400 text-sm font-medium">Contract not yet deployed to this network</p>
-          <p className="text-gray-400 text-xs">Please connect to <strong>TAO Mainnet</strong> (chain 964) to mint.</p>
+          <p className="text-foreground/50 text-xs">Please connect to <strong>TAO Mainnet</strong> (chain 964) to mint.</p>
         </div>
       )
     }
 
-    if (project.status !== "live") {
+    if (isConnected && !onCorrectChain) {
+      return (
+        <div className="space-y-2 p-4 rounded-xl bg-orange-500/10 border border-orange-500/20">
+          <p className="text-orange-400 text-sm font-medium">Wrong Network</p>
+          <p className="text-foreground/50 text-xs">Please switch to <strong>TAO Mainnet</strong> (chain 964) to mint.</p>
+        </div>
+      )
+    }
+
+    if (derivedStatus !== "live") {
       return (
         <Button
           className={`w-full bg-gradient-to-r ${theme.mintButton} text-white py-3 font-semibold opacity-60`}
           disabled size="lg"
         >
-          {project.status === "upcoming"
+          {derivedStatus === "upcoming"
             ? <span className="flex items-center gap-2"><Calendar className="w-4 h-4" />Coming Soon</span>
             : <span className="flex items-center gap-2"><Clock className="w-4 h-4" />Ended</span>}
         </Button>
@@ -775,9 +801,9 @@ export function ProjectDetail() {
       const secsUntil = upcomingPhase ? Math.max(0, Number(upcomingPhase.startTime) - nowSecs) : null
       return (
         <div className="text-center py-4 space-y-1">
-          <p className="text-gray-400 text-sm">No active mint phase right now</p>
+          <p className="text-foreground/50 text-sm">No active mint phase right now</p>
           {secsUntil !== null && (
-            <p className="text-white font-mono text-lg font-bold">{formatCountdown(secsUntil)}</p>
+            <p className="text-foreground font-mono text-lg font-bold">{formatCountdown(secsUntil)}</p>
           )}
         </div>
       )
@@ -798,8 +824,8 @@ export function ProjectDetail() {
                   <button key={i} onClick={() => setSelectedPhaseIndex(i)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                       selectedPhaseIndex === i
-                        ? `bg-white/15 border-white/30 text-white`
-                        : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
+                        ? `bg-foreground/15 border-foreground/30 text-foreground`
+                        : "bg-foreground/5 border-border text-foreground/50 hover:bg-foreground/10"
                     }`}>
                     {ph.name}
                   </button>
@@ -810,7 +836,7 @@ export function ProjectDetail() {
           <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-center">
             <XCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
             <p className="text-red-400 font-medium">Not on Allowlist</p>
-            <p className="text-gray-500 text-xs mt-1">This phase requires allowlist access.</p>
+            <p className="text-foreground/40 text-xs mt-1">This phase requires allowlist access.</p>
           </div>
         </div>
       )
@@ -827,8 +853,8 @@ export function ProjectDetail() {
                   <button key={i} onClick={() => setSelectedPhaseIndex(i)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                       selectedPhaseIndex === i
-                        ? "bg-white/15 border-white/30 text-white"
-                        : "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
+                        ? "bg-foreground/15 border-foreground/30 text-foreground"
+                        : "bg-foreground/5 border-border text-foreground/50 hover:bg-foreground/10"
                     }`}>
                     {ph.name}
                   </button>
@@ -839,7 +865,7 @@ export function ProjectDetail() {
           <div className="p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 text-center">
             <CheckCircle2 className="w-8 h-8 text-orange-400 mx-auto mb-2" />
             <p className="text-orange-400 font-medium">Phase limit reached</p>
-            <p className="text-gray-500 text-xs mt-1">
+            <p className="text-foreground/40 text-xs mt-1">
               {alreadyMintedThisPhase} / {effectiveMaxPerWallet === 0 ? "∞" : effectiveMaxPerWallet} minted in this phase
             </p>
           </div>
@@ -875,11 +901,11 @@ export function ProjectDetail() {
         )}
 
         {/* Phase info row */}
-        <div className="flex items-center justify-between text-xs text-gray-400">
+        <div className="flex items-center justify-between text-xs text-foreground/50">
           <div className="flex items-center gap-2">
             {isAllowlistPhase
               ? <><Lock className="w-3 h-3 text-yellow-400" /><span className="text-yellow-400">Allowlist</span></>
-              : <><Unlock className="w-3 h-3 text-gray-500" /><span>Public</span></>}
+              : <><Unlock className="w-3 h-3 text-foreground/30" /><span>Public</span></>}
             {isAllowlistPhase && walletOnAllowlist && (
               <span className="flex items-center gap-1 text-green-400">
                 <CheckCircle2 className="w-3 h-3" />verified
@@ -887,7 +913,7 @@ export function ProjectDetail() {
             )}
           </div>
           <div className="flex items-center gap-3">
-            <span className="font-mono text-gray-500">
+            <span className="font-mono text-foreground/40">
               {alreadyMintedThisPhase}/{effectiveMaxPerWallet === 0 ? "∞" : effectiveMaxPerWallet} used
             </span>
             {secsLeft !== null && (
@@ -903,15 +929,15 @@ export function ProjectDetail() {
               onClick={() => setMintQuantity(Math.max(1, mintQuantity - 1))}
               disabled={mintQuantity <= 1}
               className="h-9 w-9 p-0 text-lg">−</Button>
-            <span className="text-white font-bold text-lg w-8 text-center tabular-nums">{mintQuantity}</span>
+            <span className="text-foreground font-bold text-lg w-8 text-center tabular-nums">{mintQuantity}</span>
             <Button variant="outline" size="sm"
               onClick={() => setMintQuantity(Math.min(remainingForWallet, mintQuantity + 1))}
               disabled={mintQuantity >= remainingForWallet}
               className="h-9 w-9 p-0 text-lg">+</Button>
           </div>
-          <div className="flex-1 p-2.5 rounded-lg bg-white/5 border border-white/10 text-center">
-            <p className="text-[10px] text-gray-500">Total</p>
-            <p className={`text-sm font-bold ${hasEnoughBalance ? "text-white" : "text-red-400"}`}>
+          <div className="flex-1 p-2.5 rounded-lg bg-foreground/5 border border-border text-center">
+            <p className="text-[10px] text-foreground/40">Total</p>
+            <p className={`text-sm font-bold ${hasEnoughBalance ? "text-foreground" : "text-red-400"}`}>
               {fmt(totalCostWei)} {displayCurrency}
             </p>
           </div>
@@ -941,7 +967,7 @@ export function ProjectDetail() {
         </Button>
 
         {txHash && !txConfirmed && (
-          <p className="text-[10px] text-gray-500 text-center truncate">
+          <p className="text-[10px] text-foreground/40 text-center truncate">
             TX: {txHash.slice(0, 10)}…{txHash.slice(-8)}
           </p>
         )}
@@ -951,132 +977,122 @@ export function ProjectDetail() {
 
   // ── Full render ────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Banner */}
-      <div className="relative w-full h-52 sm:h-72 overflow-hidden">
-        <Image src={project.logoWide} alt={project.name} fill
-          className="object-cover" sizes="100vw" priority />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-black" />
-        <div className="absolute top-4 left-4 sm:left-8 z-10">
-          <Link href="/"
-            className={`inline-flex items-center gap-1.5 text-sm ${theme.textAccent} ${theme.textAccentHover} backdrop-blur-sm bg-black/40 border border-white/10 px-3 py-1.5 rounded-lg transition-colors`}>
-            <ArrowLeft className="w-4 h-4" />Back to Launchpad
-          </Link>
-        </div>
-      </div>
+    <div className="min-h-screen bg-background text-foreground">
 
-      {/* Profile strip */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end gap-5 -mt-14 mb-8 relative z-10">
-          <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden ring-4 ring-black flex-shrink-0 shadow-2xl">
-            <Image src={project.logoSquare} alt={project.name} fill className="object-cover" sizes="128px" />
-          </div>
-          <div className="pb-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1.5">
-              <Badge className={`${statusColor} text-xs px-3 py-1`}>
-                {project.status === "live" && <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse inline-block" />}
-                {statusText}
-              </Badge>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white">{project.name}</h1>
-            <p className="text-sm text-gray-400 mt-0.5">{project.tagline}</p>
+      {/* ── BANNER ── */}
+      <div className="relative w-full overflow-hidden" style={{ aspectRatio: "3/1", maxHeight: "380px" }}>
+        <Image
+          src={project.logoWide}
+          alt={project.name}
+          fill
+          className="object-cover"
+          sizes={IMAGE_SIZES.banner}
+          priority
+          unoptimized
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background/60 via-background/20 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background/30 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0">
+          <div className="max-w-7xl mx-auto px-6 lg:px-10 pb-8">
+            <Badge className={`${statusColor} text-[10px] px-2.5 py-0.5 font-semibold uppercase tracking-[0.15em] mb-3 inline-flex items-center`}>
+              {project.status === "live" && <span className="w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5 animate-pulse inline-block" />}
+              {statusText}
+            </Badge>
+            <h1
+              className="text-foreground leading-none"
+              style={{ fontFamily: "var(--font-barlow), 'Arial Narrow', sans-serif", fontWeight: 800, fontSize: "clamp(2.8rem, 7vw, 5.5rem)" }}
+            >
+              {project.name}
+            </h1>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
-        <div className="grid lg:grid-cols-2 gap-8">
+      {/* ── BODY ── */}
+      <div className="max-w-7xl mx-auto px-6 lg:px-10 pb-20">
 
-          {/* ─── Left Column ─── */}
-          <div className="space-y-8">
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-white">About this collection</h2>
-              <p className="text-gray-300 leading-relaxed">{project.description}</p>
+        {/* Sub-header: tagline + socials */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-5 border-b border-border">
+          <div>
+            {project.tagline && <p className="text-foreground/60 text-base leading-snug">{project.tagline}</p>}
+            {project.artist && <p className="text-[11px] font-mono uppercase tracking-[0.15em] text-foreground/35 mt-1">by {project.artist}</p>}
+          </div>
+          {(project.twitter || project.discord || project.website) && (
+            <div className="flex flex-wrap gap-2">
+              {project.twitter && (
+                <a href={project.twitter} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50 hover:text-foreground border border-border hover:border-foreground/30 px-3 py-1.5 rounded-lg transition-all">
+                  <MessageCircle className="w-3.5 h-3.5" />Twitter
+                </a>
+              )}
+              {project.discord && (
+                <a href={project.discord} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50 hover:text-foreground border border-border hover:border-foreground/30 px-3 py-1.5 rounded-lg transition-all">
+                  <Users className="w-3.5 h-3.5" />Discord
+                </a>
+              )}
+              {project.website && (
+                <a href={project.website} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50 hover:text-foreground border border-border hover:border-foreground/30 px-3 py-1.5 rounded-lg transition-all">
+                  <Globe className="w-3.5 h-3.5" />Website
+                </a>
+              )}
             </div>
+          )}
+        </div>
 
-            {/* Social links — only shown if at least one link exists */}
-            {(project.twitter || project.discord || project.website) && (
-              <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
-                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                  <Globe className={`w-5 h-5 ${theme.textAccent}`} />
-                  Community
-                </h3>
-                <div className="flex flex-wrap gap-3">
-                  {project.twitter && (
-                    <a href={project.twitter} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
-                      <MessageCircle className="w-4 h-4" />Twitter
-                    </a>
-                  )}
-                  {project.discord && (
-                    <a href={project.discord} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
-                      <Users className="w-4 h-4" />Discord
-                    </a>
-                  )}
-                  {project.website && (
-                    <a href={project.website} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-2 text-sm text-gray-300 hover:text-white transition-colors px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
-                      <Globe className="w-4 h-4" />Website
-                    </a>
-                  )}
-                </div>
-              </div>
-            )}
+        {/* ── TWO-COLUMN ── */}
+        <div className="grid lg:grid-cols-[1fr_360px] gap-12 pt-10 items-start">
+
+          {/* LEFT: content */}
+          <div className="space-y-12">
+
+            {/* About */}
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-4">About</p>
+              <p className="text-foreground/70 leading-relaxed text-base">{project.description || project.tagline || "No description available"}</p>
+            </div>
 
             {/* NFT Gallery */}
-            <div className="space-y-4">
-              <h3 className="text-2xl font-bold text-white">Recently Minted</h3>
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-4">Recently Minted</p>
               {loadingNFTs ? (
-                <div className="flex justify-center py-8">
-                  <Loader2 className="w-6 h-6 text-white/40 animate-spin" />
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-6 h-6 text-foreground/40 animate-spin" />
                 </div>
               ) : recentlyMinted.length > 0 ? (
                 <>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 max-h-96 overflow-y-auto gap-4 pr-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     {visibleNFTs.map((nft) => (
-                      <div 
-                        key={nft._id} 
-                        className="rounded-xl border border-white/10 bg-black/40 overflow-hidden flex-shrink-0 cursor-pointer hover:border-white/20 transition-colors group"
+                      <div
+                        key={nft._id}
+                        className="rounded-xl border border-border bg-card/40 overflow-hidden cursor-pointer hover:border-foreground/20 transition-all group"
                         onClick={() => handleNFTClick(nft.tokenId)}
                         title={`View ${nft.name} on block explorer`}
                       >
                         <div className="relative aspect-square">
-                          <Image 
-                            src={nft.image} 
-                            alt={nft.name} 
-                            fill 
+                          <Image
+                            src={nft.image} alt={nft.name} fill
                             className="object-cover group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              // Fallback to placeholder if image fails
-                              const target = e.target as HTMLImageElement;
-                              target.src = `/collections/chunks/pfp.jpg`;
-                            }}
+                            sizes={IMAGE_SIZES.nftCard}
+                            loading="lazy"
+                            onError={(e) => { (e.target as HTMLImageElement).src = `/collections/${slug}/pfp.jpg` }}
                             unoptimized={nft.image?.startsWith('data:') || nft.image?.startsWith('ipfs://')}
                           />
-                          {/* Hover overlay */}
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                            <ExternalLink className="w-6 h-6 text-white" />
+                          <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                            <ExternalLink className="w-5 h-5 text-foreground" />
                           </div>
                         </div>
-                        <div className="p-3">
-                          <p className="text-sm font-medium text-white truncate mb-2">{nft.name}</p>
-                          <div className="flex items-center justify-between mb-2">
-                            <Badge className={`${getRarityColor(nft.rarity)} text-[10px] px-2 py-1`}>{nft.rarity}</Badge>
-                            <span className="text-[10px] text-gray-500 font-mono">{nft.mintedBy.slice(0, 6)}...{nft.mintedBy.slice(-4)}</span>
+                        <div className="p-3 border-t border-border">
+                          <p className="text-sm font-medium text-foreground truncate mb-2">{nft.name}</p>
+                          <div className="flex items-center justify-between">
+                            <Badge className={`${getRarityColor(nft.rarity)} text-[10px] px-2 py-0.5`}>{nft.rarity}</Badge>
+                            <span className="text-[10px] text-foreground/40 font-mono">{nft.mintedBy.slice(0, 6)}…{nft.mintedBy.slice(-4)}</span>
                           </div>
-                          {/* Rarity Score Display */}
                           {nftRarityData.has(nft.tokenId) && (
-                            <div className="flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-1">
-                                <span className="text-gray-400">Rank:</span>
-                                <span className="text-white font-mono">#{nftRarityData.get(nft.tokenId)!.nft.rarity_rank}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <span className="text-gray-400">Score:</span>
-                                <span className="text-purple-400 font-mono">{nftRarityData.get(nft.tokenId)!.nft.rarity_score.toFixed(4)}</span>
-                              </div>
+                            <div className="flex items-center justify-between text-[10px] mt-2">
+                              <span className="text-foreground/40">Rank <span className="text-foreground font-mono">#{nftRarityData.get(nft.tokenId)!.nft.rarity_rank}</span></span>
+                              <span className="font-mono" style={{ color: "var(--electric-blue)" }}>{nftRarityData.get(nft.tokenId)!.nft.rarity_score.toFixed(3)}</span>
                             </div>
                           )}
                         </div>
@@ -1084,242 +1100,215 @@ export function ProjectDetail() {
                     ))}
                   </div>
                   {recentlyMinted.length > 6 && (
-                    <Button variant="outline" onClick={() => setShowAllNFTs(!showAllNFTs)}
-                      className={`w-full ${theme.textAccent} border-white/20 hover:bg-white/10`}>
-                      {showAllNFTs ? "Show Less" : `Show All (${recentlyMinted.length})`}
-                    </Button>
+                    <button
+                      onClick={() => setShowAllNFTs(!showAllNFTs)}
+                      className="mt-4 w-full text-[11px] font-semibold uppercase tracking-[0.15em] text-foreground/50 hover:text-foreground border border-border hover:border-foreground/30 py-2.5 rounded-xl transition-all"
+                    >
+                      {showAllNFTs ? "Show Less" : `Show All ${recentlyMinted.length} NFTs`}
+                    </button>
                   )}
                 </>
               ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <p className="text-sm">No NFTs minted yet</p>
-                  <p className="text-xs mt-1">Be the first to mint!</p>
+                <div className="text-center py-12 border border-dashed border-border rounded-xl text-foreground/40">
+                  <p className="text-sm">No NFTs minted yet — be first.</p>
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* ─── Right Column ─── */}
-          <div className="space-y-6">
-            <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
-              {/* Phases */}
-              <div className="space-y-2 mb-5">{renderPhases()}</div>
-
-              {/* Overall progress */}
-              <div className="mb-5">
-                <div className="flex justify-between text-xs text-gray-500 mb-1.5">
-                  <span>{displayMinted.toLocaleString()} / {displaySupply.toLocaleString()} minted</span>
-                  <span>{progress.toFixed(1)}%</span>
-                </div>
-                <Progress value={progress} className={`h-2 ${theme.separator}`} />
-              </div>
-
-              {/* Mint panel */}
-              {renderMintPanel()}
-
-              {/* Success toast */}
-              {mintSuccess && (
-                <div className="mt-3 flex items-center gap-2 text-green-400 text-sm p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                  <span>
-                    Minted {mintSuccess.quantity} NFT{mintSuccess.quantity > 1 ? "s" : ""}!{" "}
-                    <span className="font-mono text-xs opacity-70">{mintSuccess.txHash.slice(0, 10)}…</span>
-                  </span>
-                </div>
-              )}
-
-              {/* Error toast */}
-              {mintError && (
-                <div className="mt-3 flex items-center gap-2 text-red-400 text-sm p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  {mintError}
-                </div>
-              )}
-
-              <p className="text-[10px] text-gray-600 text-center mt-2">
-                {project.participants.toLocaleString()} holders
-              </p>
-            </div>
-
-            {/* Allowlist Checker */}
-            <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
-              <h2 className="text-lg font-bold text-white mb-4">Allowlist Checker</h2>
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  value={alWallet}
-                  onChange={(e) => { setAlWallet(e.target.value); setAlResult(null) }}
-                  placeholder="Paste wallet address (0x...)"
-                  className="w-full px-4 py-3 rounded-lg bg-white/5 border border-white/10 text-white placeholder-gray-400 focus:outline-none focus:border-purple-500/50 transition-all text-sm"
-                />
-                <Button
-                  className={`w-full bg-gradient-to-r ${theme.mintButton} ${theme.mintButtonHover} text-white font-medium`}
-                  onClick={handleCheckAllowlist}
-                  disabled={alChecking || !alWallet.trim()}
-                >
-                  {alChecking ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Check
-                </Button>
-                {alResult && (
-                  <div className={`flex items-center gap-2 text-sm p-3 rounded-lg border ${
-                    alResult.allowed
-                      ? "text-green-400 bg-green-500/10 border-green-500/20"
-                      : "text-red-400 bg-red-500/10 border-red-500/20"
-                  }`}>
-                    {alResult.allowed
-                      ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                      : <XCircle className="w-4 h-4 flex-shrink-0" />}
-                    {alResult.allowed ? "Wallet is on the allowlist!" : "Wallet is not on the allowlist."}
-                  </div>
-                )}
-              </div>
             </div>
 
             {/* Highlights */}
-            {project.highlights.length > 0 && (
-              <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
-                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <Star className={`w-5 h-5 ${theme.textAccent}`} />
-                  Highlights
-                </h2>
-                <ul className="space-y-2">
+            {project.highlights && project.highlights.length > 0 && (
+              <div>
+                <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-4">Highlights</p>
+                <div className="divide-y divide-border">
                   {project.highlights.map((h, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
-                      <CheckCircle2 className={`w-4 h-4 ${theme.textAccent} flex-shrink-0 mt-0.5`} />
-                      {h}
-                    </li>
+                    <div key={i} className="flex items-start gap-3 py-3">
+                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-1.5" style={{ backgroundColor: "var(--electric-blue)" }} />
+                      <span className="text-sm text-foreground/70 leading-relaxed">{h}</span>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             )}
 
             {/* Utilities */}
-            {project.utilities.length > 0 && (
-              <div className={`rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
-                <h2 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                  <Zap className={`w-5 h-5 ${theme.textAccent}`} />
-                  Utility
-                </h2>
-                <ul className="space-y-2">
+            {project.utilities && project.utilities.length > 0 && (
+              <div>
+                <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-4">Utility</p>
+                <div className="grid sm:grid-cols-2 gap-3">
                   {project.utilities.map((u, i) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
-                      <div className={`w-1.5 h-1.5 rounded-full ${theme.textAccent.replace("text-", "bg-")} flex-shrink-0 mt-1.5`} />
-                      {u}
-                    </li>
+                    <div key={i} className="flex items-start gap-3 p-4 rounded-xl border border-border bg-card/40">
+                      <Zap className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: "var(--electric-blue)" }} />
+                      <span className="text-sm text-foreground/70 leading-relaxed">{u}</span>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             )}
-          </div>
-        </div>
 
-        {/* ─── On-Chain Contract (full width, bottom) ─── */}
-        {hasContract && contractAddress && (() => {
-          const explorerBase =
-            onChainStatus?.chainId === 11155111 ? "https://sepolia.etherscan.io" :
-            onChainStatus?.chainId === 964       ? "https://evm.taostats.io"         :
-            onChainStatus?.chainId === 945       ? "https://test.taostats.io"    : null
-
-          const contractUrl = explorerBase ? `${explorerBase}/address/${contractAddress}` : null
-          const totalPhases = (onChainPhases as OnChainPhase[] | undefined)?.length ?? 0
-          const transfersLocked = onChainTransfersLocked as boolean | undefined
-          const owner = onChainStatus?.onChain?.owner
-          const royaltyBps = onChainStatus?.onChain?.royaltyBps
-          const royaltyPct = royaltyBps !== undefined && royaltyBps !== null && !isNaN(royaltyBps) ? (royaltyBps / 100).toFixed(1) + "%" : "..."
-
-          return (
-            <div className={`mt-8 rounded-2xl border ${theme.cardBorder} bg-black/40 p-6`}>
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Layers className={`w-5 h-5 ${theme.textAccent}`} />
-                  On-Chain Contract
-                </h3>
-                {contractUrl && (
-                  <a href={contractUrl} target="_blank" rel="noopener noreferrer"
-                    className={`flex items-center gap-1.5 text-xs ${theme.textAccent} ${theme.textAccentHover} transition-colors`}>
-                    View on Explorer <ExternalLink className="w-3 h-3" />
-                  </a>
+            {/* Allowlist checker */}
+            <div>
+              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-4">Allowlist Checker</p>
+              <div className="max-w-md space-y-3">
+                <input
+                  type="text" value={alWallet}
+                  onChange={(e) => { setAlWallet(e.target.value); setAlResult(null) }}
+                  placeholder="0x… wallet address"
+                  className="w-full px-4 py-3 rounded-xl bg-background border border-border text-foreground placeholder-foreground/30 focus:outline-none focus:border-foreground/40 transition-all text-sm font-mono"
+                />
+                <Button
+                  className="w-full font-semibold text-[11px] uppercase tracking-[0.15em]"
+                  style={{ backgroundColor: "var(--electric-blue)", color: "#fff" }}
+                  onClick={handleCheckAllowlist}
+                  disabled={alChecking || !alWallet.trim()}
+                >
+                  {alChecking ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Check Wallet
+                </Button>
+                {alResult && (
+                  <div className={`flex items-center gap-2 text-sm p-3 rounded-xl border ${alResult.allowed ? "text-green-400 bg-green-500/10 border-green-500/20" : "text-red-400 bg-red-500/10 border-red-500/20"}`}>
+                    {alResult.allowed ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <XCircle className="w-4 h-4 flex-shrink-0" />}
+                    {alResult.allowed ? "On the allowlist" : "Not on the allowlist"}
+                  </div>
                 )}
               </div>
+            </div>
+          </div>
 
-              {/* Row 1 — address + creator (wider cells) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                  <p className="text-[10px] text-gray-500 mb-1">Contract Address</p>
-                  {contractUrl ? (
-                    <a href={contractUrl} target="_blank" rel="noopener noreferrer"
-                      className={`font-mono text-xs text-white hover:${theme.textAccent} transition-colors flex items-center gap-1`}>
-                      {contractAddress.slice(0, 10)}…{contractAddress.slice(-8)}
-                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                    </a>
-                  ) : (
-                    <span className="font-mono text-xs text-white">{contractAddress.slice(0, 10)}…{contractAddress.slice(-8)}</span>
-                  )}
+          {/* RIGHT: sticky mint panel */}
+          <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
+
+            {/* Main mint card */}
+            <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
+
+              {/* Identity */}
+              <div className="flex items-center gap-3 pb-5 border-b border-border">
+                <div className="w-12 h-12 rounded-xl overflow-hidden border border-border flex-shrink-0">
+                  <Image src={project.logoSquare || "/placeholder-logo.png"} alt={project.name || slug} width={48} height={48} className="object-cover w-full h-full" sizes={IMAGE_SIZES.mintThumb} unoptimized />
                 </div>
-
-                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                  <p className="text-[10px] text-gray-500 mb-1">Creator</p>
-                  {owner && explorerBase ? (
-                    <a href={`${explorerBase}/address/${owner}`} target="_blank" rel="noopener noreferrer"
-                      className={`font-mono text-xs text-white hover:${theme.textAccent} transition-colors flex items-center gap-1`}>
-                      {owner.slice(0, 10)}…{owner.slice(-8)}
-                      <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                    </a>
-                  ) : (
-                    <span className="font-mono text-xs text-gray-500">—</span>
-                  )}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{project.name || slug}</p>
+                  {project.artist && <p className="text-[11px] text-foreground/40 font-mono truncate">by {project.artist}</p>}
                 </div>
               </div>
 
-              {/* Row 2 — metadata stats */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                  <p className="text-[10px] text-gray-500 mb-1">Royalty</p>
-                  <p className="text-sm font-bold text-white">{royaltyPct}</p>
+              {/* Progress */}
+              <div>
+                <div className="flex justify-between text-[11px] text-foreground/40 mb-2 font-mono">
+                  <span>{(displayMinted ?? 0).toLocaleString()} / {(displaySupply ?? 0).toLocaleString()} minted</span>
+                  <span>{progress.toFixed(1)}%</span>
                 </div>
-
-                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                  <p className="text-[10px] text-gray-500 mb-1">Phases</p>
-                  <p className="text-sm font-bold text-white">{totalPhases}</p>
-                </div>
-
-                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                  <p className="text-[10px] text-gray-500 mb-1">Transfers</p>
-                  <p className={`text-sm font-bold flex items-center gap-1 ${transfersLocked ? "text-yellow-400" : "text-green-400"}`}>
-                    {transfersLocked === undefined ? "—" : transfersLocked
-                      ? <><Lock className="w-3 h-3" />Locked</>
-                      : <><Unlock className="w-3 h-3" />Open</>}
-                  </p>
-                </div>
-
-                <div className="rounded-xl bg-white/5 border border-white/10 p-3">
-                  <p className="text-[10px] text-gray-500 mb-1">Standard</p>
-                  <p className="text-xs font-bold text-white">ERC-721A</p>
-                  <p className="text-[10px] text-gray-500">+ ERC-2981</p>
+                <div className="h-1.5 bg-foreground/10 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, progress)}%`, background: "var(--electric-blue)" }} />
                 </div>
               </div>
 
-              {/* Quick links row */}
-              {explorerBase && (
-                <div className="flex flex-wrap gap-2 mt-4">
-                  <a href={`${explorerBase}/address/${contractAddress}?tab=contract`} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
-                    <BarChart3 className="w-3 h-3" />Contract Code
-                  </a>
-                  <a href={`${explorerBase}/address/${contractAddress}?tab=logs`} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
-                    <TrendingUp className="w-3 h-3" />Events Log
-                  </a>
-                  <a href={`${explorerBase}/address/${contractAddress}?tab=txs`} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10">
-                    <Zap className="w-3 h-3" />Transactions
-                  </a>
+              {/* Phases */}
+              {((hasContract && onChainPhases && (onChainPhases as OnChainPhase[]).length > 0) || (project.phases && project.phases.length > 0)) && (
+                <div className="space-y-2">{renderPhases()}</div>
+              )}
+
+              {/* Mint actions */}
+              {renderMintPanel()}
+
+              {mintSuccess && (
+                <div className="flex items-center gap-2 text-green-400 text-sm p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  <span>Minted {mintSuccess.quantity} NFT{mintSuccess.quantity > 1 ? "s" : ""}! <span className="font-mono text-[10px] opacity-60">{mintSuccess.txHash.slice(0, 10)}…</span></span>
                 </div>
               )}
+              {mintError && (
+                <div className="flex items-start gap-2 text-red-400 text-sm p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{mintError}</span>
+                </div>
+              )}
+
+              <p className="text-[10px] text-foreground/30 text-center font-mono">{(project.participants ?? 0).toLocaleString()} holders</p>
             </div>
-          )
-        })()}
+
+            {/* Contract card */}
+            {hasContract && contractAddress && (() => {
+              const explorerBase =
+                onChainStatus?.chainId === 11155111 ? "https://sepolia.etherscan.io" :
+                onChainStatus?.chainId === 964       ? "https://evm.taostats.io"     :
+                onChainStatus?.chainId === 945       ? "https://test.taostats.io"    : null
+              const contractUrl = explorerBase ? `${explorerBase}/address/${contractAddress}` : null
+              const transfersLocked = onChainTransfersLocked as boolean | undefined
+              const royaltyBps = onChainStatus?.onChain?.royaltyBps
+              const royaltyPct = royaltyBps !== undefined && royaltyBps !== null && !isNaN(royaltyBps) ? (royaltyBps / 100).toFixed(1) + "%" : "..."
+              const owner = onChainStatus?.onChain?.owner
+
+              return (
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35">Contract</p>
+                    {contractUrl && (
+                      <a href={contractUrl} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] hover:opacity-70 transition-opacity"
+                        style={{ color: "var(--electric-blue)" }}>
+                        Explorer <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-background border border-border">
+                      <span className="text-[10px] text-foreground/40 uppercase tracking-[0.12em]">Address</span>
+                      {contractUrl ? (
+                        <a href={contractUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-foreground hover:opacity-70 flex items-center gap-1">
+                          {contractAddress.slice(0, 8)}…{contractAddress.slice(-6)}<ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      ) : (
+                        <span className="font-mono text-xs text-foreground">{contractAddress.slice(0, 8)}…{contractAddress.slice(-6)}</span>
+                      )}
+                    </div>
+                    {owner && (
+                      <div className="flex items-center justify-between p-3 rounded-xl bg-background border border-border">
+                        <span className="text-[10px] text-foreground/40 uppercase tracking-[0.12em]">Creator</span>
+                        {explorerBase ? (
+                          <a href={`${explorerBase}/address/${owner}`} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-foreground hover:opacity-70 flex items-center gap-1">
+                            {owner.slice(0, 8)}…{owner.slice(-6)}<ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        ) : (
+                          <span className="font-mono text-xs text-foreground">{owner.slice(0, 8)}…{owner.slice(-6)}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: "Royalty",   value: royaltyPct, cls: undefined },
+                      { label: "Phases",    value: String((onChainPhases as OnChainPhase[] | undefined)?.length ?? 0), cls: undefined },
+                      { label: "Transfers", value: transfersLocked === undefined ? "—" : transfersLocked ? "Locked" : "Open",
+                        cls: transfersLocked ? "text-yellow-400" : "text-green-400" },
+                      { label: "Standard",  value: "ERC-721A", cls: undefined },
+                    ].map(({ label, value, cls }) => (
+                      <div key={label} className="p-3 rounded-xl bg-background border border-border">
+                        <p className="text-[10px] text-foreground/40 uppercase tracking-[0.1em] mb-1">{label}</p>
+                        <p className={`text-xs font-bold ${cls ?? "text-foreground"}`}>{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {explorerBase && (
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { label: "Code", tab: "contract", Icon: BarChart3 },
+                        { label: "Logs", tab: "logs",     Icon: TrendingUp },
+                        { label: "Txs",  tab: "txs",      Icon: Zap },
+                      ].map(({ label, tab, Icon }) => (
+                        <a key={tab} href={`${explorerBase}/address/${contractAddress}?tab=${tab}`} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-[11px] text-foreground/50 hover:text-foreground border border-border hover:border-foreground/30 px-3 py-1.5 rounded-lg transition-all">
+                          <Icon className="w-3 h-3" />{label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+          </div>
+        </div>
       </div>
     </div>
   )
 }
+

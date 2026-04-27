@@ -39,11 +39,6 @@ export const TAO_NFT_ABI = [
         "type": "uint256"
       },
       {
-        "internalType": "string",
-        "name": "_unrevealedURI",
-        "type": "string"
-      },
-      {
         "internalType": "address",
         "name": "_royaltyReceiver",
         "type": "address"
@@ -347,6 +342,16 @@ export const TAO_NFT_ABI = [
   },
   {
     "inputs": [],
+    "name": "SupplyBelowMinted",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SupplyNotReduced",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "TokenAlreadyExists",
     "type": "error"
   },
@@ -482,6 +487,25 @@ export const TAO_NFT_ABI = [
       }
     ],
     "name": "ConsecutiveTransfer",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "oldMaxSupply",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newMaxSupply",
+        "type": "uint256"
+      }
+    ],
+    "name": "MaxSupplyReduced",
     "type": "event"
   },
   {
@@ -674,25 +698,6 @@ export const TAO_NFT_ABI = [
         "internalType": "string",
         "name": "newBaseURI",
         "type": "string"
-      }
-    ],
-    "name": "Revealed",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "receiver",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint96",
-        "name": "feeNumerator",
-        "type": "uint96"
       }
     ],
     "name": "RoyaltyUpdated",
@@ -1395,32 +1400,6 @@ export const TAO_NFT_ABI = [
   {
     "inputs": [
       {
-        "internalType": "string",
-        "name": "newBaseURI",
-        "type": "string"
-      }
-    ],
-    "name": "reveal",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "revealed",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "uint256",
         "name": "tokenId",
         "type": "uint256"
@@ -1628,19 +1607,6 @@ export const TAO_NFT_ABI = [
       }
     ],
     "name": "setTokenRoyalty",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "_uri",
-        "type": "string"
-      }
-    ],
-    "name": "setUnrevealedURI",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
