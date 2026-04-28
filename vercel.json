@@ -9,8 +9,7 @@
         }
       ],
       "destination": "https://elevateart.xyz/$1",
-      "permanent": true,
-      "statusCode": 301
+      "permanent": true
     }
   ],
   "headers": [
