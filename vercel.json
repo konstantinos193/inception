@@ -10,6 +10,39 @@
       ],
       "destination": "https://elevateart.xyz/$1",
       "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.elevateart.xyz"
+        }
+      ],
+      "destination": "https://elevateart.xyz/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "http://www.elevateart.xyz"
+        }
+      ],
+      "destination": "https://elevateart.xyz/$1",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "http://elevateart.xyz"
+        }
+      ],
+      "destination": "https://elevateart.xyz/$1",
+      "permanent": true
     }
   ],
   "headers": [
@@ -19,6 +52,10 @@
         {
           "key": "X-Robots-Tag",
           "value": "index, follow"
+        },
+        {
+          "key": "Link",
+          "value": "<https://elevateart.xyz>; rel=\"canonical\""
         }
       ]
     }
