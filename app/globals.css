@@ -133,6 +133,10 @@ body {
   }
 }
 
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
 @keyframes pulse-glow {
   0%, 100% {
     opacity: 0.3;

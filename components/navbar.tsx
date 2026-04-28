@@ -18,6 +18,7 @@ export function Navbar() {
   const [hidden, setHidden] = useState(false)
   const [mounted, setMounted] = useState(false)
   const isMobile = useIsMobile()
+  const { theme, setTheme } = useTheme()
 
   useEffect(() => {
     setMounted(true)
@@ -76,6 +77,15 @@ export function Navbar() {
               About
             </Link>
             <ConnectButton />
+            {mounted && (
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="p-2 rounded-md transition-colors hover:bg-accent text-[#1a1a1a] dark:text-white"
+                aria-label="Toggle theme"
+              >
+                {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+            )}
           </div>
         </div>
       </div>

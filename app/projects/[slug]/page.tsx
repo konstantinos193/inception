@@ -1,6 +1,7 @@
 import { fetchProject } from "@/lib/api"
 import { ProjectDetail } from "@/components/project-detail"
 import type { Metadata } from "next"
+import { getCollectionTheme } from "@/lib/collection-theme"
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
 
@@ -30,6 +31,9 @@ export async function generateMetadata(
 
   const title       = `${project.name} — ${getStatusLabel(project.status)}`
   const description = project.tagline || project.description
+  
+  // Get collection theme for brand colors
+  const theme = getCollectionTheme(slug)
 
   return {
     title,
@@ -51,6 +55,9 @@ export async function generateMetadata(
       title,
       description,
       images:      [ogImage],
+    },
+    other: {
+      'theme-color': theme.primary,
     },
   }
 }
