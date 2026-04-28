@@ -1,9 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { Project } from "@/lib/api"
 import { TaoIcon } from "@/components/tao-icon"
+import { MediaRenderer } from "@/components/MediaRenderer"
+import Image from "next/image"
 
 function LiveBadge() {
   return (
@@ -30,8 +31,8 @@ export function FeaturedCollectionCard({ project }: { project: Project }) {
   return (
     <Link href={`/projects/${project.slug}`} className="block group">
       <div className="w-full rounded-2xl overflow-hidden border border-white/10 relative" style={{ aspectRatio: "16/6" }}>
-        {/* Background image */}
-        <Image
+        {/* Background media */}
+        <MediaRenderer
           src={project.logoWide || project.logoSquare}
           alt={project.name}
           fill

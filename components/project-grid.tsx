@@ -31,8 +31,8 @@ export function ProjectGrid({ projects }: ProjectGridProps) {
       style={{
         backgroundImage: `url(/grid-bg.png)`,
         backgroundSize: "auto",
-        backgroundPosition: "center",
-        backgroundRepeat: "repeat",
+        backgroundPosition: "left",
+        backgroundRepeat: "no-repeat",
       }}
     >
       <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-10">

@@ -980,7 +980,7 @@ export function ProjectDetail() {
     <div className="min-h-screen bg-background text-foreground">
 
       {/* ── BANNER ── */}
-      <div className="relative w-full overflow-hidden" style={{ aspectRatio: "3/1", maxHeight: "380px" }}>
+      <div className="relative w-full overflow-hidden" style={{ aspectRatio: "3/1", maxHeight: "450px" }}>
         <Image
           src={project.logoWide}
           alt={project.name}

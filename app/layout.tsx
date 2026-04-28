@@ -117,7 +117,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="icon" href="/favicon.png" />
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className={`${ibmPlexSans.variable} ${ibmPlexMono.variable} ${barlowCondensed.variable} ${goldman.variable} ${ibmPlexSans.className}`}>

@@ -4,6 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Project } from "@/lib/api"
 import { TaoIcon } from "@/components/tao-icon"
+import { MediaRenderer } from "@/components/MediaRenderer"
 
 export function SecondaryFeaturedCard({ project }: { project: Project }) {
   if (!project) return null
@@ -17,7 +18,7 @@ export function SecondaryFeaturedCard({ project }: { project: Project }) {
     >
       {/* Square thumbnail */}
       <div className="relative w-14 h-14 rounded-xl overflow-hidden bg-white/5 shrink-0">
-        <Image
+        <MediaRenderer
           src={project.logoSquare}
           alt={project.name}
           fill
