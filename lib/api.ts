@@ -115,7 +115,15 @@ export async function fetchProjects(): Promise<Project[]> {
   if (!res.ok) throw new Error("Failed to fetch projects");
   const response = await res.json();
   const projects = response.data || response;
-  return projects.map((project: any) => processProjectImages(project));
+  return projects.map((project: any) => {
+    const processed = processProjectImages(project);
+    // Convert string fields to numbers where needed
+    return {
+      ...processed,
+      mintPrice: parseFloat(processed.mintPrice) || 0,
+      totalTaoRaised: processed.totalTaoRaised ? parseFloat(processed.totalTaoRaised) : undefined,
+    };
+  });
 }
 
 export async function fetchProject(slug: string): Promise<Project | null> {

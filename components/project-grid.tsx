@@ -35,13 +35,13 @@ export function ProjectGrid({ projects }: ProjectGridProps) {
         backgroundRepeat: "no-repeat",
       }}
     >
-      <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-10">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-10">
 
         {/* Section heading */}
-        <div className="mb-8 text-right">
+        <div className="mb-6 sm:mb-8 text-center sm:text-right">
           <h2
             className="uppercase tracking-widest text-foreground"
-            style={{ fontFamily: "var(--font-barlow), 'Arial Narrow', sans-serif", fontWeight: 800, fontSize: "clamp(1.5rem, 3vw, 2.5rem)" }}
+            style={{ fontFamily: "var(--font-barlow), 'Arial Narrow', sans-serif", fontWeight: 800, fontSize: "clamp(1.25rem, 4vw, 2.5rem)" }}
           >
             Featured Collections
           </h2>

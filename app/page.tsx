@@ -41,7 +41,7 @@ export default function Home() {
       <Hero />
       {loading ? (
         <div className="flex justify-center py-20">
-          <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--electric-blue)" }} />
         </div>
       ) : (
         <ProjectGrid projects={projects} />

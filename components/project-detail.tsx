@@ -977,7 +977,7 @@ export function ProjectDetail() {
 
   // ── Full render ────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen bg-background text-foreground pt-16 lg:pt-0">
 
       {/* ── BANNER ── */}
       <div className="relative w-full overflow-hidden" style={{ aspectRatio: "3/1", maxHeight: "450px" }}>

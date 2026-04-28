@@ -30,6 +30,7 @@ export function MediaRenderer({
 }: MediaRendererProps) {
   const [mediaType, setMediaType] = useState<"image" | "video" | "gif" | "audio" | "html">("image")
   const [isLoaded, setIsLoaded] = useState(false)
+  const [showFallback, setShowFallback] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
 
@@ -58,8 +59,20 @@ export function MediaRenderer({
   }
 
   const handleError = () => {
+    setShowFallback(true)
     onError?.()
   }
+
+  // Show fallback after 3 seconds if image hasn't loaded
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isLoaded) {
+        setShowFallback(true)
+      }
+    }, 3000)
+
+    return () => clearTimeout(timer)
+  }, [isLoaded])
 
   const handleVideoLoad = () => {
     setIsLoaded(true)
@@ -147,7 +160,7 @@ export function MediaRenderer({
       src={src}
       alt={alt}
       fill={fill}
-      className={`${className} ${!isLoaded ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
+      className={`${className} ${!isLoaded && !showFallback ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
       sizes={sizes}
       priority={priority}
       unoptimized={unoptimized}
