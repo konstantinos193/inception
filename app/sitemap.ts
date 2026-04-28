@@ -8,7 +8,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const projects = await fetchProjects()
 
     const collectionEntries: MetadataRoute.Sitemap = projects.map((project) => ({
-      url:             `${APP_URL}/collection/${project.slug}`,
+      url:             `${APP_URL}/projects/${project.slug}`,
       lastModified:    new Date(project.startDate || Date.now()),
       changeFrequency: project.status === "live" ? "daily" : "weekly",
       priority:        project.status === "live" ? 0.9 : 0.7,
