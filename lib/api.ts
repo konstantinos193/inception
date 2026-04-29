@@ -127,12 +127,16 @@ export async function fetchProjects(): Promise<Project[]> {
 }
 
 export async function fetchProject(slug: string): Promise<Project | null> {
-  const res = await fetch(`${API_URL}/api/projects/${slug}`);
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error("Failed to fetch project");
-  const response = await res.json();
-  const project = response.data || response;
-  return processProjectImages(project);
+  try {
+    const res = await fetch(`${API_URL}/api/projects/${slug}`);
+    if (res.status === 404) return null;
+    if (!res.ok) return null;
+    const response = await res.json();
+    const project = response.data || response;
+    return processProjectImages(project);
+  } catch {
+    return null;
+  }
 }
 
 // ─── Minting ─────────────────────────────────────────────────

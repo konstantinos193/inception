@@ -985,7 +985,7 @@ export function ProjectDetail() {
           src={project.logoWide}
           alt={project.name}
           fill
-          className="object-cover"
+          className="object-cover object-bottom"
           sizes={IMAGE_SIZES.banner}
           priority
           unoptimized
@@ -999,7 +999,7 @@ export function ProjectDetail() {
               {statusText}
             </Badge>
             <h1
-              className="text-foreground leading-none"
+              className="text-white leading-none"
               style={{ fontFamily: "var(--font-barlow), 'Arial Narrow', sans-serif", fontWeight: 800, fontSize: "clamp(2.8rem, 7vw, 5.5rem)" }}
             >
               {project.name}
@@ -1145,8 +1145,8 @@ export function ProjectDetail() {
               </div>
             )}
 
-            {/* Allowlist checker */}
-            <div>
+            {/* Allowlist checker — hidden for fully-public collections */}
+            {onChainPhases && onChainPhases.some(p => p.signer !== zeroAddress) && <div>
               <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-4">Allowlist Checker</p>
               <div className="max-w-md space-y-3">
                 <input
@@ -1171,7 +1171,7 @@ export function ProjectDetail() {
                   </div>
                 )}
               </div>
-            </div>
+            </div>}
           </div>
 
           {/* RIGHT: sticky mint panel */}
