@@ -66,7 +66,6 @@ export async function generateMetadata(
       siteName:    "Elevate",
       images: [
         { url: ogImage, width: 1200, height: 630, alt: project.name },
-        { url: pfpImage, width: 512, height: 512, alt: `${project.name} icon` },
       ],
     },
     twitter: {
