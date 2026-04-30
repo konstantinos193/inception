@@ -1,6 +1,11 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 import { processProjectImages } from "./image-utils";
 
+/** Build the URL for the backend image proxy — handles IPFS, caching, fallbacks server-side */
+export function nftImageUrl(slug: string, tokenId: number): string {
+  return `${API_URL}/api/images/nft/${slug}/${tokenId}`;
+}
+
 export interface MintPhase {
   _id: string;
   name: string;
@@ -179,7 +184,7 @@ export async function fetchRecentlyMinted(slug: string, wallet?: string): Promis
       _id: `${nft.tokenId}`,
       tokenId: nft.tokenId,
       name: nft.name,
-      image: nft.image || `/placeholder-${nft.tokenId}.png`, // Fallback image
+      image: nft.image || null,
       rarity: "Common", // Default rarity since on-chain might not have this
       mintedBy: wallet,
       mintedAt: new Date().toISOString() // We don't have mint timestamp from on-chain

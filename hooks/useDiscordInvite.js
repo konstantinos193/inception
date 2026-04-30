@@ -10,7 +10,7 @@ export function useDiscordInvite() {
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch('/api/discord/invite');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/discord/invite`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch invite');

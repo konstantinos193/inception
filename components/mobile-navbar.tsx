@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Menu, X, Sun, Moon } from "lucide-react"
 import { useTheme } from "next-themes"
+import { usePathname } from "next/navigation"
 import dynamic from "next/dynamic"
 
 const ConnectButton = dynamic(
@@ -14,6 +15,9 @@ const ConnectButton = dynamic(
 export function MobileNavbar() {
   const [isOpen, setIsOpen] = useState(false)
   const { theme, setTheme } = useTheme()
+  const pathname = usePathname()
+
+  useEffect(() => { setIsOpen(false) }, [pathname])
 
   return (
     <>

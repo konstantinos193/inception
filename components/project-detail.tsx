@@ -12,6 +12,8 @@ import {
 import { IMAGE_SIZES } from "@/lib/collection-images"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import MintGraphic from "@/components/mint-graphic"
+import ContractInfo from "./contract-info"
 import { getCollectionTheme, CollectionTheme } from "@/lib/collection-theme"
 import {
   fetchProject,
@@ -21,6 +23,7 @@ import {
   fetchRecentlyMinted,
   fetchNFTRarity,
   fetchRarityStats,
+  nftImageUrl,
   type Project,
   type AllowlistResult,
   type OnChainStatus,
@@ -246,6 +249,9 @@ export function ProjectDetail() {
       .map(({ idx }) => idx)
   }, [onChainPhases, nowSecs])
 
+  // Whether multiple phases are active (used for MintGraphic)
+  const multiPhase = activePhaseIndices.length > 1
+
   // Auto-select first active phase; clear selection when no phases are active
   useEffect(() => {
     if (activePhaseIndices.length === 0) {
@@ -290,45 +296,53 @@ export function ProjectDetail() {
     checkUserAllowlist()
   }, [connectedWallet, slug, activeOnChainPhase, selectedPhaseIndex])
 
-  // Load recently minted NFTs
+  // Load recently minted NFTs (fast — no rarity blocking)
   useEffect(() => {
     if (!slug) return
+    let cancelled = false
 
     const loadRecentlyMinted = async (showSpinner: boolean) => {
       try {
         if (showSpinner) setLoadingNFTs(true)
         const nfts = await fetchRecentlyMinted(slug)
-        setRecentlyMinted(nfts)
-
-        // Load rarity data only if rarity has been calculated for this collection
-        const rarityMap = new Map<number, NFTRarity>()
-        try {
-          const stats = await fetchRarityStats(slug)
-          if (stats.statistics.total > 0) {
-            for (const nft of nfts) {
-              try {
-                const rarity = await fetchNFTRarity(slug, nft.tokenId)
-                rarityMap.set(nft.tokenId, rarity)
-              } catch (_) { /* token not in rarity_data yet */ }
-            }
-          }
-        } catch (_) { /* rarity stats not available */ }
-        setNftRarityData(rarityMap)
+        if (!cancelled) setRecentlyMinted(nfts)
       } catch (error) {
         console.error("Failed to load recently minted NFTs:", error)
-        if (showSpinner) setRecentlyMinted([])
+        if (!cancelled && showSpinner) setRecentlyMinted([])
       } finally {
-        if (showSpinner) setLoadingNFTs(false)
+        if (!cancelled && showSpinner) setLoadingNFTs(false)
       }
     }
 
-    // Initial load shows the spinner
     loadRecentlyMinted(true)
-
-    // Background polling refreshes silently (no spinner)
     const interval = setInterval(() => loadRecentlyMinted(false), 30000)
-    return () => clearInterval(interval)
+    return () => { cancelled = true; clearInterval(interval) }
   }, [slug])
+
+  // Load rarity data in background (non-blocking, after NFTs are visible)
+  useEffect(() => {
+    if (!slug || recentlyMinted.length === 0) return
+    let cancelled = false
+
+    const loadRarity = async () => {
+      try {
+        const stats = await fetchRarityStats(slug)
+        if (cancelled || stats.statistics.total === 0) return
+
+        const rarityMap = new Map<number, NFTRarity>()
+        const results = await Promise.allSettled(
+          recentlyMinted.map(nft => fetchNFTRarity(slug, nft.tokenId))
+        )
+        results.forEach((r, i) => {
+          if (r.status === "fulfilled") rarityMap.set(recentlyMinted[i].tokenId, r.value)
+        })
+        if (!cancelled) setNftRarityData(rarityMap)
+      } catch (_) { /* rarity not available */ }
+    }
+
+    loadRarity()
+    return () => { cancelled = true }
+  }, [slug, recentlyMinted])
 
   // Helper to get block explorer URL for NFT
   const getExplorerUrl = (tokenId: number) => {
@@ -580,11 +594,12 @@ export function ProjectDetail() {
 
   // ── Derived display values ─────────────────────────────────────────────────
 
-  const displayMinted = hasContract && onChainTotalMinted !== undefined
+  // Use on-chain data if available and non-zero, otherwise fall back to database
+  const displayMinted = (hasContract && onChainTotalMinted !== undefined && onChainTotalMinted > 0)
     ? onChainTotalMinted
     : (project?.minted ?? 0)
 
-  const displaySupply = onChainStatus?.deployed && onChainStatus.onChain?.maxSupply !== undefined
+  const displaySupply = (onChainStatus?.deployed && onChainStatus.onChain?.maxSupply !== undefined && onChainStatus.onChain.maxSupply > 0)
     ? onChainStatus.onChain.maxSupply
     : (project?.supply ?? 10_000)
 
@@ -592,6 +607,16 @@ export function ProjectDetail() {
 
 
   const displayCurrency = project?.currency ?? "TAO"
+
+  // Find the maximum price across all phases for display
+  const maxPhasePrice = useMemo(() => {
+    if (!onChainPhases || onChainPhases.length === 0) return 0n
+    return onChainPhases.reduce((max, phase) => phase.price > max ? phase.price : max, 0n)
+  }, [onChainPhases])
+
+  // Calculate total cost for MintGraphic (used outside renderMintPanel)
+  const totalCostWei = activeOnChainPhase ? activeOnChainPhase.price * BigInt(mintQuantity) : 0n
+  const hasEnoughBalance = walletBalance ? walletBalance.value >= totalCostWei : true
 
   const isMinting = isWritePending || txConfirming
   const canMint = hasContract
@@ -604,6 +629,22 @@ export function ProjectDetail() {
         && mintQuantity >= 1
         && !isMinting)
     : false
+
+  // Calculate disabled reason for mint button
+  const disabledReason = useMemo(() => {
+    if (canMint && hasEnoughBalance) return undefined
+    if (!hasContract) return "Contract not deployed"
+    if (!isConnected) return "Connect wallet to mint"
+    if (!onCorrectChain) return "Switch to correct network"
+    if (selectedPhaseIndex === null) return "No active mint phase"
+    if (activeOnChainPhase?.paused) return "Minting is paused"
+    if (isAllowlistPhase && !walletOnAllowlist) return "Not on allowlist"
+    if (remainingForWallet <= 0) return "No minting slots remaining"
+    if (mintQuantity < 1) return "Invalid quantity"
+    if (!hasEnoughBalance) return "Insufficient balance"
+    if (isMinting) return "Transaction in progress"
+    return undefined
+  }, [canMint, hasEnoughBalance, hasContract, isConnected, onCorrectChain, selectedPhaseIndex, activeOnChainPhase?.paused, isAllowlistPhase, walletOnAllowlist, remainingForWallet, mintQuantity, isMinting])
 
   // ── Loading state ──────────────────────────────────────────────────────────
   if (loading) {
@@ -640,69 +681,125 @@ export function ProjectDetail() {
 
   // ── Render phases from on-chain data (if available) ────────────────────────
   const renderPhases = () => {
+    // No phases configured state
+    if (!hasContract && (!project.phases || !Array.isArray(project.phases) || project.phases.length === 0)) {
+      return (
+        <div className="rounded-xl border border-dashed border-border/50 bg-card/20 p-8 text-center">
+          <Clock className="w-12 h-12 text-foreground/30 mx-auto mb-3" />
+          <p className="text-foreground/60 text-sm font-medium mb-1">No Phases Configured</p>
+          <p className="text-foreground/40 text-xs">Minting phases haven't been set up yet. Check back soon!</p>
+        </div>
+      )
+    }
+
     if (hasContract && onChainPhases && (onChainPhases as OnChainPhase[]).length > 0) {
       return (onChainPhases as OnChainPhase[]).map((phase, idx) => {
         const status    = phaseStatusFromTimestamps(phase.startTime, phase.endTime, nowSecs)
         const isActive  = status === "active"
         const isDone    = status === "completed"
+        const isUpcoming = status === "upcoming"
         const isSelected = isActive && selectedPhaseIndex === idx
         const secsLeft  = isActive && phase.endTime > 0n
           ? Math.max(0, Number(phase.endTime) - nowSecs)
           : null
-        const secsUntil = status === "upcoming"
+        const secsUntil = isUpcoming
           ? Math.max(0, Number(phase.startTime) - nowSecs)
           : null
+        const minted = phase.minted ?? 0
+        const maxSupply = phase.maxSupply ?? 0
+        const progress = maxSupply > 0 ? (minted / maxSupply) * 100 : 0
+        const isSoldOut = maxSupply > 0 && minted >= maxSupply
 
         return (
           <div
             key={idx}
-            onClick={() => isActive && setSelectedPhaseIndex(idx)}
-            className={`rounded-lg border p-3 transition-all ${
+            onClick={() => isActive && !isSoldOut && setSelectedPhaseIndex(idx)}
+            className={`rounded-xl border p-4 transition-all cursor-pointer ${
               isSelected
-                ? `border-green-500/50 bg-green-500/10 ring-1 ring-green-500/30 cursor-pointer`
+                ? `border-green-500/50 bg-green-500/10 ring-1 ring-green-500/30`
                 : isActive
-                ? "border-green-500/20 bg-green-500/5 cursor-pointer hover:border-green-500/40 hover:bg-green-500/8"
+                ? "border-green-500/20 bg-green-500/5 hover:border-green-500/40 hover:bg-green-500/8"
                 : isDone
                 ? "border-purple-500/20 bg-purple-500/5"
+                : isUpcoming
+                ? "border-blue-500/20 bg-blue-500/5"
                 : "border-border bg-card/30"
-            }`}
+            } ${isSoldOut ? "opacity-60 cursor-not-allowed" : ""}`}
           >
-            <div className="flex items-center justify-between gap-2">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-2 mb-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className={`w-8 h-8 rounded-lg flex-shrink-0 flex items-center justify-center ${
-                  isActive ? "bg-green-500/20" : isDone ? "bg-purple-500/20" : "bg-foreground/10"
+                <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center ${
+                  isActive ? "bg-green-500/20" : isDone ? "bg-purple-500/20" : isUpcoming ? "bg-blue-500/20" : "bg-foreground/10"
                 }`}>
-                  {isActive ? <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                   : isDone  ? <Check className="w-4 h-4 text-purple-400" />
-                   : <Clock className="w-4 h-4 text-foreground/40" />}
+                  {isSoldOut ? <XCircle className="w-5 h-5 text-red-400" />
+                   : isActive ? <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse" />
+                   : isDone  ? <Check className="w-5 h-5 text-purple-400" />
+                   : isUpcoming ? <Clock className="w-5 h-5 text-blue-400" />
+                   : <Clock className="w-5 h-5 text-foreground/40" />}
                 </div>
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="font-semibold text-foreground text-sm">{phase.name}</p>
-                    {phase.signer !== zeroAddress
-                      ? <Lock className="w-3 h-3 text-yellow-400 flex-shrink-0" />
-                      : <Unlock className="w-3 h-3 text-foreground/30 flex-shrink-0" />}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-semibold text-foreground text-base">{phase.name}</p>
+                    {isSoldOut && <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px] font-semibold">SOLD OUT</Badge>}
+                    {phase.signer !== zeroAddress && !isSoldOut
+                      ? <Lock className="w-4 h-4 text-yellow-400 flex-shrink-0" />
+                      : !isSoldOut && <Unlock className="w-4 h-4 text-foreground/30 flex-shrink-0" />}
                   </div>
-                  <p className="text-xs text-foreground/50 truncate">
-                    {phase.price === 0n ? "Free" : `${fmt(phase.price)} ${displayCurrency}`} · {(phase.minted ?? 0).toLocaleString()}/{phase.maxSupply === 0 ? "\u221E" : (phase.maxSupply ?? 0).toLocaleString()}
-                  </p>
                 </div>
               </div>
               <div className="flex-shrink-0 flex flex-col items-end gap-1">
-                {isActive && (
-                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px]">LIVE</Badge>
+                {isActive && !isSoldOut && (
+                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px] font-semibold">LIVE</Badge>
                 )}
                 {isDone && (
-                  <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px]">DONE</Badge>
+                  <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] font-semibold">DONE</Badge>
                 )}
-                {secsLeft !== null && (
-                  <span className="text-[10px] text-foreground/40 font-mono tabular-nums">ends {formatCountdown(secsLeft)}</span>
-                )}
-                {secsUntil !== null && (
-                  <span className="text-[10px] text-foreground/40 font-mono tabular-nums">in {formatCountdown(secsUntil)}</span>
+                {isUpcoming && (
+                  <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-[10px] font-semibold">UPCOMING</Badge>
                 )}
               </div>
             </div>
+
+            {/* Price and Supply */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className={`font-mono font-bold ${phase.price === 0n ? "text-green-400" : "text-foreground"}`}>
+                  {phase.price === 0n ? "Free" : `${fmt(phase.price)} ${displayCurrency}`}
+                </span>
+              </div>
+              <span className="text-xs text-foreground/50 font-mono">
+                {minted.toLocaleString()} / {maxSupply === 0 ? "∞" : maxSupply.toLocaleString()}
+              </span>
+            </div>
+
+            {/* Progress Bar */}
+            {maxSupply > 0 && (
+              <div className="mb-3">
+                <div className="h-2 bg-foreground/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ 
+                      width: `${Math.min(100, progress)}%`,
+                      background: isSoldOut ? "#ef4444" : isActive ? "var(--electric-blue)" : isDone ? "#a855f7" : isUpcoming ? "#3b82f6" : "var(--foreground/30)"
+                    }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-foreground/40 mt-1 font-mono">
+                  <span>{progress.toFixed(1)}%</span>
+                  {isSoldOut && <span className="text-red-400">Sold Out</span>}
+                </div>
+              </div>
+            )}
+
+            {/* Timer */}
+            {(secsLeft !== null || secsUntil !== null) && (
+              <div className="text-center">
+                <span className={`text-xs font-mono ${secsLeft !== null ? "text-orange-400" : "text-blue-400"}`}>
+                  {secsLeft !== null ? `⏱ Ends in ${formatCountdown(secsLeft)}` : `🕐 Starts in ${formatCountdown(secsUntil)}`}
+                </span>
+              </div>
+            )}
           </div>
         )
       })
@@ -710,39 +807,96 @@ export function ProjectDetail() {
 
     // Fall back to DB phases (no on-chain data)
     if (!project.phases || !Array.isArray(project.phases)) {
-      return null
+      return (
+        <div className="rounded-xl border border-dashed border-border/50 bg-card/20 p-8 text-center">
+          <Clock className="w-12 h-12 text-foreground/30 mx-auto mb-3" />
+          <p className="text-foreground/60 text-sm font-medium mb-1">No Phases Configured</p>
+          <p className="text-foreground/40 text-xs">Minting phases haven't been set up yet. Check back soon!</p>
+        </div>
+      )
     }
+    
+    if (project.phases.length === 0) {
+      return (
+        <div className="rounded-xl border border-dashed border-border/50 bg-card/20 p-8 text-center">
+          <Clock className="w-12 h-12 text-foreground/30 mx-auto mb-3" />
+          <p className="text-foreground/60 text-sm font-medium mb-1">No Phases Configured</p>
+          <p className="text-foreground/40 text-xs">Minting phases haven't been set up yet. Check back soon!</p>
+        </div>
+      )
+    }
+    
     return project.phases.map((phase, idx) => {
       const isActive    = phase.status === "active"
       const isCompleted = phase.status === "completed"
+      const minted = phase.minted || 0
+      const maxSupply = phase.maxSupply || 0
+      const progress = maxSupply > 0 ? (minted / maxSupply) * 100 : 0
+
       return (
         <div
           key={idx}
-          className={`rounded-lg border p-3 ${
-            isActive    ? "border-green-500/30 bg-green-500/5"
+          onClick={() => isActive && setSelectedPhaseIndex(idx)}
+          className={`rounded-xl border p-4 transition-all cursor-pointer ${
+            isActive    ? "border-green-500/30 bg-green-500/5 hover:border-green-500/40 hover:bg-green-500/8"
             : isCompleted ? "border-purple-500/20 bg-purple-500/5"
             : "border-border bg-card/30"
           }`}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+          {/* Header */}
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center ${
                 isActive ? "bg-green-500/20" : isCompleted ? "bg-purple-500/20" : "bg-foreground/10"
               }`}>
-                {isActive    ? <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                : isCompleted ? <Check className="w-4 h-4 text-purple-400" />
-                : <Clock className="w-4 h-4 text-foreground/40" />}
+                {isActive ? <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse" />
+                 : isCompleted ? <Check className="w-5 h-5 text-purple-400" />
+                 : <Clock className="w-5 h-5 text-foreground/40" />}
               </div>
-              <div>
-                <p className="font-semibold text-foreground text-sm">{phase.name}</p>
-                <p className="text-xs text-foreground/50">
-                  {phase.price} {project.currency} · {(phase.minted ?? 0).toLocaleString()}/{phase.supply || "∞"}
-                </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="font-semibold text-foreground text-base">{phase.name}</p>
+                  {phase.requireAllowlist && <Lock className="w-4 h-4 text-yellow-400 flex-shrink-0" />}
+                </div>
               </div>
             </div>
-            {isActive    && <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-xs">LIVE</Badge>}
-            {isCompleted && <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-xs">DONE</Badge>}
+            <div className="flex-shrink-0 flex flex-col items-end gap-1">
+              {isActive && (
+                <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px] font-semibold">LIVE</Badge>
+              )}
+              {isCompleted && (
+                <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-[10px] font-semibold">DONE</Badge>
+              )}
+            </div>
           </div>
+
+          {/* Price and Supply */}
+          <div className="flex items-center justify-between mb-3">
+            <span className={`font-mono font-bold ${phase.price === 0 ? "text-green-400" : "text-foreground"}`}>
+              {phase.price === 0 ? "Free" : `${phase.price} TAO`}
+            </span>
+            <span className="text-xs text-foreground/50 font-mono">
+              {minted.toLocaleString()} / {maxSupply === 0 ? "∞" : maxSupply.toLocaleString()}
+            </span>
+          </div>
+
+          {/* Progress Bar */}
+          {maxSupply > 0 && (
+            <div className="mb-3">
+              <div className="h-2 bg-foreground/10 rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ 
+                    width: `${Math.min(100, progress)}%`,
+                    background: isActive ? "var(--electric-blue)" : isCompleted ? "#a855f7" : "var(--foreground/30)"
+                  }}
+                />
+              </div>
+              <div className="flex justify-between text-[10px] text-foreground/40 mt-1 font-mono">
+                <span>{progress.toFixed(1)}%</span>
+              </div>
+            </div>
+          )}
         </div>
       )
     })
@@ -798,26 +952,54 @@ export function ProjectDetail() {
       const upcomingPhase = onChainPhases
         ? (onChainPhases as OnChainPhase[]).find(p => phaseStatusFromTimestamps(p.startTime, p.endTime, nowSecs) === "upcoming")
         : null
+      const completedPhases = onChainPhases
+        ? (onChainPhases as OnChainPhase[]).filter(p => phaseStatusFromTimestamps(p.startTime, p.endTime, nowSecs) === "completed")
+        : []
       const secsUntil = upcomingPhase ? Math.max(0, Number(upcomingPhase.startTime) - nowSecs) : null
+      
+      // All phases completed state
+      if (completedPhases.length === (onChainPhases?.length ?? 0) && (onChainPhases?.length ?? 0) > 0) {
+        return (
+          <div className="p-6 rounded-xl bg-purple-500/10 border border-purple-500/20 text-center">
+            <CheckCircle2 className="w-12 h-12 text-purple-400 mx-auto mb-3" />
+            <p className="text-purple-400 font-medium text-lg mb-1">All Phases Completed</p>
+            <p className="text-foreground/50 text-sm">Minting has ended for this collection</p>
+          </div>
+        )
+      }
+
+      // No phases at all state
+      if (!onChainPhases || onChainPhases.length === 0) {
+        return (
+          <div className="p-6 rounded-xl bg-gray-500/10 border border-gray-500/20 text-center">
+            <Clock className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+            <p className="text-gray-400 font-medium text-lg mb-1">No Phases Available</p>
+            <p className="text-foreground/50 text-sm">Minting phases haven't been configured yet</p>
+          </div>
+        )
+      }
+
+      // Upcoming countdown state
       return (
-        <div className="text-center py-4 space-y-1">
-          <p className="text-foreground/50 text-sm">No active mint phase right now</p>
+        <div className="p-6 rounded-xl bg-blue-500/10 border border-blue-500/20 text-center">
+          <Clock className="w-12 h-12 text-blue-400 mx-auto mb-3" />
+          <p className="text-blue-400 font-medium text-lg mb-1">Next Phase Starting Soon</p>
           {secsUntil !== null && (
-            <p className="text-foreground font-mono text-lg font-bold">{formatCountdown(secsUntil)}</p>
+            <>
+              <p className="text-foreground font-mono text-2xl font-bold mb-1">{formatCountdown(secsUntil)}</p>
+              <p className="text-foreground/50 text-sm">{upcomingPhase?.name}</p>
+            </>
           )}
         </div>
       )
     }
-
-    // ── Phase selector (only shown when multiple phases are active) ────────
-    const multiPhase = activePhaseIndices.length > 1
 
     // ── Per-phase guard states ─────────────────────────────────────────────
     if (isAllowlistPhase && !walletOnAllowlist) {
       return (
         <div className="space-y-3">
           {multiPhase && (
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap lg:hidden">
               {activePhaseIndices.map(i => {
                 const ph = (onChainPhases as OnChainPhase[])[i]
                 return (
@@ -842,11 +1024,48 @@ export function ProjectDetail() {
       )
     }
 
+    // Check if phase is sold out
+    const isPhaseSoldOut = activeOnChainPhase && activeOnChainPhase.maxSupply > 0 && activeOnChainPhase.minted >= activeOnChainPhase.maxSupply
+
+    if (isPhaseSoldOut) {
+      return (
+        <div className="space-y-3">
+          {multiPhase && (
+            <div className="flex gap-2 flex-wrap lg:hidden">
+              {activePhaseIndices.map(i => {
+                const ph = (onChainPhases as OnChainPhase[])[i]
+                const phSoldOut = ph.maxSupply > 0 && ph.minted >= ph.maxSupply
+                return (
+                  <button key={i} onClick={() => !phSoldOut && setSelectedPhaseIndex(i)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      selectedPhaseIndex === i
+                        ? "bg-foreground/15 border-foreground/30 text-foreground"
+                        : phSoldOut
+                        ? "bg-red-500/10 border-red-500/20 text-red-400 cursor-not-allowed opacity-60"
+                        : "bg-foreground/5 border-border text-foreground/50 hover:bg-foreground/10"
+                    }`}>
+                    {ph.name} {phSoldOut && "(Sold Out)"}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <div className="p-6 rounded-xl bg-red-500/10 border border-red-500/20 text-center">
+            <XCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
+            <p className="text-red-400 font-medium text-lg mb-1">Phase Sold Out</p>
+            <p className="text-foreground/50 text-sm">
+              {activeOnChainPhase.minted} / {activeOnChainPhase.maxSupply} minted
+            </p>
+          </div>
+        </div>
+      )
+    }
+
     if (remainingForWallet === 0) {
       return (
         <div className="space-y-3">
           {multiPhase && (
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap lg:hidden">
               {activePhaseIndices.map(i => {
                 const ph = (onChainPhases as OnChainPhase[])[i]
                 return (
@@ -873,17 +1092,15 @@ export function ProjectDetail() {
       )
     }
 
-    const totalCostWei = activeOnChainPhase ? activeOnChainPhase.price * BigInt(mintQuantity) : 0n
-    const hasEnoughBalance = walletBalance ? walletBalance.value >= totalCostWei : true
     const secsLeft = activeOnChainPhase && activeOnChainPhase.endTime > 0n
       ? Math.max(0, Number(activeOnChainPhase.endTime) - nowSecs)
       : null
 
     return (
       <div className="space-y-4">
-        {/* Phase selector tabs (only when multiple active) */}
+        {/* Phase selector tabs (only when multiple active) - mobile only */}
         {multiPhase && (
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap lg:hidden">
             {activePhaseIndices.map(i => {
               const ph = (onChainPhases as OnChainPhase[])[i]
               return (
@@ -980,7 +1197,7 @@ export function ProjectDetail() {
     <div className="min-h-screen bg-background text-foreground pt-16 lg:pt-0">
 
       {/* ── BANNER ── */}
-      <div className="relative w-full overflow-hidden" style={{ aspectRatio: "3/1", maxHeight: "450px" }}>
+      <div className="relative w-full overflow-hidden aspect-[2/1] lg:aspect-[3/1]" style={{ maxHeight: "450px" }}>
         <Image
           src={project.logoWide}
           alt={project.name}
@@ -992,18 +1209,48 @@ export function ProjectDetail() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-background/60 via-background/20 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-background/30 to-transparent" />
+
+        {/* Badge + Title — bottom-left, all screens */}
         <div className="absolute bottom-0 left-0 right-0">
-          <div className="max-w-7xl mx-auto px-6 lg:px-10 pb-8">
-            <Badge className={`${statusColor} text-[10px] px-2.5 py-0.5 font-semibold uppercase tracking-[0.15em] mb-3 inline-flex items-center`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 pb-5 lg:pb-8 relative">
+            <Badge className={`${statusColor} text-[10px] px-2.5 py-0.5 font-semibold uppercase tracking-[0.15em] mb-2 lg:mb-3 inline-flex items-center`}>
               {project.status === "live" && <span className="w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5 animate-pulse inline-block" />}
               {statusText}
             </Badge>
             <h1
               className="text-white leading-none"
-              style={{ fontFamily: "var(--font-barlow), 'Arial Narrow', sans-serif", fontWeight: 800, fontSize: "clamp(2.8rem, 7vw, 5.5rem)" }}
+              style={{ fontFamily: "var(--font-barlow), 'Arial Narrow', sans-serif", fontWeight: 800, fontSize: "clamp(2rem, 8vw, 5.5rem)" }}
             >
               {project.name}
             </h1>
+
+            {/* Mint Progress card — right side of banner */}
+            {hasContract && (
+              <div className="absolute right-0 top-0 w-48 sm:w-64 lg:w-[360px]">
+                <div className="rounded-xl lg:rounded-2xl bg-white/80 backdrop-blur-md border border-white/30 p-2.5 sm:p-3 lg:p-5 shadow-lg">
+                  <p className="text-gray-800 font-semibold text-xs sm:text-sm lg:text-base mb-2 lg:mb-3">Mint Progress:</p>
+                  <div className="h-1.5 lg:h-2 bg-gray-300 rounded-full overflow-hidden mb-1.5 lg:mb-2">
+                    <div className="h-full rounded-full" style={{ width: `${progress}%`, backgroundColor: "var(--electric-blue)" }} />
+                  </div>
+                  <div className="flex items-center justify-between text-[9px] sm:text-[10px] lg:text-xs text-gray-500 mb-1">
+                    <span>{progress.toFixed(1)}% Sold</span>
+                    <span className="font-mono">{displayMinted.toLocaleString()} / {displaySupply.toLocaleString()}</span>
+                  </div>
+                  {hasContract && onChainPhases && onChainPhases.length > 0 && (
+                    <p className="text-[9px] sm:text-[10px] lg:text-xs text-gray-500">
+                      Mint Price: <span className="text-gray-800 font-semibold inline-flex items-center gap-0.5">
+                        {maxPhasePrice === 0n ? "Free" : fmt(maxPhasePrice)}
+                        {maxPhasePrice !== 0n && (
+                          <span className="flex items-center justify-center w-3 h-3 rounded-full bg-white">
+                            <img alt="T" className="w-2 h-2" src="/bittensor-logo.svg" />
+                          </span>
+                        )}
+                      </span>
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1011,50 +1258,133 @@ export function ProjectDetail() {
       {/* ── BODY ── */}
       <div className="max-w-7xl mx-auto px-6 lg:px-10 pb-20">
 
-        {/* Sub-header: tagline + socials */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 py-5 border-b border-border">
-          <div>
-            {project.tagline && <p className="text-foreground/60 text-base leading-snug">{project.tagline}</p>}
-            {project.artist && <p className="text-[11px] font-mono uppercase tracking-[0.15em] text-foreground/35 mt-1">by {project.artist}</p>}
-          </div>
-          {(project.twitter || project.discord || project.website) && (
-            <div className="flex flex-wrap gap-2">
-              {project.twitter && (
-                <a href={project.twitter} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50 hover:text-foreground border border-border hover:border-foreground/30 px-3 py-1.5 rounded-lg transition-all">
-                  <MessageCircle className="w-3.5 h-3.5" />Twitter
-                </a>
-              )}
-              {project.discord && (
-                <a href={project.discord} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50 hover:text-foreground border border-border hover:border-foreground/30 px-3 py-1.5 rounded-lg transition-all">
-                  <Users className="w-3.5 h-3.5" />Discord
-                </a>
-              )}
-              {project.website && (
-                <a href={project.website} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-foreground/50 hover:text-foreground border border-border hover:border-foreground/30 px-3 py-1.5 rounded-lg transition-all">
-                  <Globe className="w-3.5 h-3.5" />Website
-                </a>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* ── TWO-COLUMN ── */}
         <div className="grid lg:grid-cols-[1fr_360px] gap-12 pt-10 items-start">
 
           {/* LEFT: content */}
-          <div className="space-y-12">
+          <div className="space-y-12 min-w-0">
 
             {/* About */}
-            <div>
-              <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-4">About</p>
-              <p className="text-foreground/70 leading-relaxed text-base">{project.description || project.tagline || "No description available"}</p>
+            <div className="space-y-6">
+              {/* 1:1 PFP above info */}
+              {project.logoSquare && (
+                <div className="flex justify-start hidden lg:flex">
+                  <div className="relative aspect-square w-64 rounded-2xl overflow-hidden border border-border/50">
+                    <Image
+                      src={project.logoSquare}
+                      alt={project.name}
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </div>
+                </div>
+              )}
+              {/* About section (both mobile and desktop) */}
+              <div>
+                <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-2 block lg:hidden">About</p>
+                <p className="text-foreground/60 text-sm mt-1 block lg:hidden">{project.tagline}</p>
+                {project.description && (
+                  <p className="text-foreground/60 text-base leading-snug mt-3 hidden lg:block">{project.description}</p>
+                )}
+                {(project.twitter || project.discord || project.website) && (
+                  <div className="flex items-center gap-2 pt-3">
+                    {project.twitter && (
+                      <a href={project.twitter} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center w-8 h-8 rounded-lg border hover:border-foreground/30 transition-all"
+                        style={{ color: "var(--electric-blue)", borderColor: "var(--electric-blue)" }}>
+                        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.259 5.63zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                      </a>
+                    )}
+                    {project.discord && (
+                      <a href={project.discord} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center w-8 h-8 rounded-lg border hover:border-foreground/30 transition-all"
+                        style={{ color: "var(--electric-blue)", borderColor: "var(--electric-blue)" }}>
+                        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.08.114 18.1.133 18.115a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                      </a>
+                    )}
+                    {project.website && (
+                      <a href={project.website} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center w-8 h-8 rounded-lg border hover:border-foreground/30 transition-all"
+                        style={{ color: "var(--electric-blue)", borderColor: "var(--electric-blue)" }}>
+                        <Globe className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
+            {/* Mobile: Mint Graphic under About */}
+            <div className="lg:hidden mb-8">
+              <MintGraphic
+                slug={slug}
+                pfpPath={project?.logoSquare}
+                minted={displayMinted}
+                supply={displaySupply}
+                quantity={mintQuantity}
+                totalCost={fmt(totalCostWei)}
+                currency={displayCurrency}
+                onDecrement={() => setMintQuantity(Math.max(1, mintQuantity - 1))}
+                onIncrement={() => setMintQuantity(Math.min(remainingForWallet, mintQuantity + 1))}
+                onMint={handleOnChainMint}
+                canDecrement={mintQuantity > 1}
+                canIncrement={mintQuantity < remainingForWallet}
+                canMint={canMint && hasEnoughBalance}
+                isMinting={isMinting}
+                disabledReason={disabledReason}
+                phaseName={activeOnChainPhase?.name}
+                phasePrice={activeOnChainPhase ? (activeOnChainPhase.price === 0n ? "Free" : fmt(activeOnChainPhase.price)) : undefined}
+                phases={multiPhase ? activePhaseIndices.map(i => ({
+                  name: (onChainPhases as OnChainPhase[])[i].name,
+                  index: i,
+                  isActive: true,
+                  isSelected: selectedPhaseIndex === i
+                })) : undefined}
+                onPhaseSelect={(index) => { setSelectedPhaseIndex(index); setMintQuantity(1) }}
+              />
+            </div>
+
+            <div className="border-b border-foreground/20 mt-4" />
+
+            {/* Phase Selector & Contract Info */}
+            {((hasContract && onChainPhases && (onChainPhases as OnChainPhase[]).length > 0) || (project.phases && project.phases.length > 0) || (hasContract && contractAddress)) && (
+              <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+                {/* Phase Selector */}
+                <div className="flex-1">
+                  <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-4">Mint Phases</p>
+                  <div className="space-y-2">{renderPhases()}</div>
+                </div>
+
+                {/* Contract Info */}
+                {hasContract && contractAddress && (() => {
+                  const explorerBase =
+                    onChainStatus?.chainId === 11155111 ? "https://sepolia.etherscan.io" :
+                    onChainStatus?.chainId === 964       ? "https://evm.taostats.io"     :
+                    onChainStatus?.chainId === 945       ? "https://test.taostats.io"    : null
+                  const contractUrl = explorerBase ? `${explorerBase}/address/${contractAddress}` : null
+                  const transfersLocked = onChainTransfersLocked as boolean | undefined
+                  const royaltyBps = onChainStatus?.onChain?.royaltyBps
+                  const owner = onChainStatus?.onChain?.owner
+
+                  return (
+                    <div className="w-full lg:w-[300px] lg:shrink-0">
+                      <ContractInfo
+                        contractAddress={contractAddress}
+                        explorerUrl={contractUrl}
+                        owner={owner}
+                        royaltyBps={royaltyBps}
+                        phasesCount={(onChainPhases as OnChainPhase[]).length || (project.phases?.length || 0)}
+                        transfersLocked={transfersLocked}
+                      />
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
+
             {/* NFT Gallery */}
-            <div>
+            <div className="min-w-0">
               <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-4">Recently Minted</p>
               {loadingNFTs ? (
                 <div className="flex justify-center py-12">
@@ -1062,22 +1392,22 @@ export function ProjectDetail() {
                 </div>
               ) : recentlyMinted.length > 0 ? (
                 <>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory">
                     {visibleNFTs.map((nft) => (
                       <div
                         key={nft._id}
-                        className="rounded-xl border border-border bg-card/40 overflow-hidden cursor-pointer hover:border-foreground/20 transition-all group"
+                        className="flex-shrink-0 w-48 rounded-xl border border-border bg-card/40 overflow-hidden cursor-pointer hover:border-foreground/20 transition-all group snap-start"
                         onClick={() => handleNFTClick(nft.tokenId)}
                         title={`View ${nft.name} on block explorer`}
                       >
-                        <div className="relative aspect-square">
+                        <div className="relative aspect-square bg-card">
                           <Image
-                            src={nft.image} alt={nft.name} fill
+                            src={nftImageUrl(slug, nft.tokenId)}
+                            alt={nft.name} fill
                             className="object-cover group-hover:scale-105 transition-transform duration-300"
                             sizes={IMAGE_SIZES.nftCard}
                             loading="lazy"
-                            onError={(e) => { (e.target as HTMLImageElement).src = `/collections/${slug}/pfp.jpg` }}
-                            unoptimized={nft.image?.startsWith('data:') || nft.image?.startsWith('ipfs://')}
+                            unoptimized
                           />
                           <div className="absolute inset-0 bg-background/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                             <ExternalLink className="w-5 h-5 text-foreground" />
@@ -1087,7 +1417,11 @@ export function ProjectDetail() {
                           <p className="text-sm font-medium text-foreground truncate mb-2">{nft.name}</p>
                           <div className="flex items-center justify-between">
                             <Badge className={`${getRarityColor(nft.rarity)} text-[10px] px-2 py-0.5`}>{nft.rarity}</Badge>
-                            <span className="text-[10px] text-foreground/40 font-mono">{nft.mintedBy.slice(0, 6)}…{nft.mintedBy.slice(-4)}</span>
+                            <span className="text-[10px] text-foreground/40 font-mono">
+                              {nft.mintedBy.length > 12
+                                ? `${nft.mintedBy.slice(0, 6)}…${nft.mintedBy.slice(-4)}`
+                                : nft.mintedBy}
+                            </span>
                           </div>
                           {nftRarityData.has(nft.tokenId) && (
                             <div className="flex items-center justify-between text-[10px] mt-2">
@@ -1175,136 +1509,47 @@ export function ProjectDetail() {
           </div>
 
           {/* RIGHT: sticky mint panel */}
-          <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
+          <div className="lg:sticky lg:top-24 lg:self-start space-y-4 hidden lg:block">
+            {/* Mint Graphic - desktop only */}
+            <MintGraphic
+              slug={slug}
+              pfpPath={project?.logoSquare}
+              minted={displayMinted}
+              supply={displaySupply}
+              quantity={mintQuantity}
+              totalCost={fmt(totalCostWei)}
+              currency={displayCurrency}
+              onDecrement={() => setMintQuantity(Math.max(1, mintQuantity - 1))}
+              onIncrement={() => setMintQuantity(Math.min(remainingForWallet, mintQuantity + 1))}
+              onMint={handleOnChainMint}
+              canDecrement={mintQuantity > 1}
+              canIncrement={mintQuantity < remainingForWallet}
+              canMint={canMint && hasEnoughBalance}
+              isMinting={isMinting}
+              disabledReason={disabledReason}
+              phaseName={activeOnChainPhase?.name}
+              phasePrice={activeOnChainPhase ? (activeOnChainPhase.price === 0n ? "Free" : fmt(activeOnChainPhase.price)) : undefined}
+              phases={multiPhase ? activePhaseIndices.map(i => ({
+                name: (onChainPhases as OnChainPhase[])[i].name,
+                index: i,
+                isActive: true,
+                isSelected: selectedPhaseIndex === i
+              })) : undefined}
+              onPhaseSelect={(index) => { setSelectedPhaseIndex(index); setMintQuantity(1) }}
+            />
 
-            {/* Main mint card */}
-            <div className="rounded-2xl border border-border bg-card p-5 space-y-5">
-
-              {/* Identity */}
-              <div className="flex items-center gap-3 pb-5 border-b border-border">
-                <div className="w-12 h-12 rounded-xl overflow-hidden border border-border flex-shrink-0">
-                  <Image src={project.logoSquare || "/placeholder-logo.png"} alt={project.name || slug} width={48} height={48} className="object-cover w-full h-full" sizes={IMAGE_SIZES.mintThumb} unoptimized />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-foreground truncate">{project.name || slug}</p>
-                  {project.artist && <p className="text-[11px] text-foreground/40 font-mono truncate">by {project.artist}</p>}
-                </div>
+            {mintSuccess && (
+              <div className="flex items-center gap-2 text-green-400 text-sm p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span>Minted {mintSuccess.quantity} NFT{mintSuccess.quantity > 1 ? "s" : ""}! <span className="font-mono text-[10px] opacity-60">{mintSuccess.txHash.slice(0, 10)}…</span></span>
               </div>
-
-              {/* Progress */}
-              <div>
-                <div className="flex justify-between text-[11px] text-foreground/40 mb-2 font-mono">
-                  <span>{(displayMinted ?? 0).toLocaleString()} / {(displaySupply ?? 0).toLocaleString()} minted</span>
-                  <span>{progress.toFixed(1)}%</span>
-                </div>
-                <div className="h-1.5 bg-foreground/10 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(100, progress)}%`, background: "var(--electric-blue)" }} />
-                </div>
+            )}
+            {mintError && (
+              <div className="flex items-start gap-2 text-red-400 text-sm p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>{mintError}</span>
               </div>
-
-              {/* Phases */}
-              {((hasContract && onChainPhases && (onChainPhases as OnChainPhase[]).length > 0) || (project.phases && project.phases.length > 0)) && (
-                <div className="space-y-2">{renderPhases()}</div>
-              )}
-
-              {/* Mint actions */}
-              {renderMintPanel()}
-
-              {mintSuccess && (
-                <div className="flex items-center gap-2 text-green-400 text-sm p-3 rounded-xl bg-green-500/10 border border-green-500/20">
-                  <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                  <span>Minted {mintSuccess.quantity} NFT{mintSuccess.quantity > 1 ? "s" : ""}! <span className="font-mono text-[10px] opacity-60">{mintSuccess.txHash.slice(0, 10)}…</span></span>
-                </div>
-              )}
-              {mintError && (
-                <div className="flex items-start gap-2 text-red-400 text-sm p-3 rounded-xl bg-red-500/10 border border-red-500/20">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span>{mintError}</span>
-                </div>
-              )}
-
-              <p className="text-[10px] text-foreground/30 text-center font-mono">{(project.participants ?? 0).toLocaleString()} holders</p>
-            </div>
-
-            {/* Contract card */}
-            {hasContract && contractAddress && (() => {
-              const explorerBase =
-                onChainStatus?.chainId === 11155111 ? "https://sepolia.etherscan.io" :
-                onChainStatus?.chainId === 964       ? "https://evm.taostats.io"     :
-                onChainStatus?.chainId === 945       ? "https://test.taostats.io"    : null
-              const contractUrl = explorerBase ? `${explorerBase}/address/${contractAddress}` : null
-              const transfersLocked = onChainTransfersLocked as boolean | undefined
-              const royaltyBps = onChainStatus?.onChain?.royaltyBps
-              const royaltyPct = royaltyBps !== undefined && royaltyBps !== null && !isNaN(royaltyBps) ? (royaltyBps / 100).toFixed(1) + "%" : "..."
-              const owner = onChainStatus?.onChain?.owner
-
-              return (
-                <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35">Contract</p>
-                    {contractUrl && (
-                      <a href={contractUrl} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] hover:opacity-70 transition-opacity"
-                        style={{ color: "var(--electric-blue)" }}>
-                        Explorer <ExternalLink className="w-3 h-3" />
-                      </a>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-background border border-border">
-                      <span className="text-[10px] text-foreground/40 uppercase tracking-[0.12em]">Address</span>
-                      {contractUrl ? (
-                        <a href={contractUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-foreground hover:opacity-70 flex items-center gap-1">
-                          {contractAddress.slice(0, 8)}…{contractAddress.slice(-6)}<ExternalLink className="w-2.5 h-2.5" />
-                        </a>
-                      ) : (
-                        <span className="font-mono text-xs text-foreground">{contractAddress.slice(0, 8)}…{contractAddress.slice(-6)}</span>
-                      )}
-                    </div>
-                    {owner && (
-                      <div className="flex items-center justify-between p-3 rounded-xl bg-background border border-border">
-                        <span className="text-[10px] text-foreground/40 uppercase tracking-[0.12em]">Creator</span>
-                        {explorerBase ? (
-                          <a href={`${explorerBase}/address/${owner}`} target="_blank" rel="noopener noreferrer" className="font-mono text-xs text-foreground hover:opacity-70 flex items-center gap-1">
-                            {owner.slice(0, 8)}…{owner.slice(-6)}<ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        ) : (
-                          <span className="font-mono text-xs text-foreground">{owner.slice(0, 8)}…{owner.slice(-6)}</span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { label: "Royalty",   value: royaltyPct, cls: undefined },
-                      { label: "Phases",    value: String((onChainPhases as OnChainPhase[] | undefined)?.length ?? 0), cls: undefined },
-                      { label: "Transfers", value: transfersLocked === undefined ? "—" : transfersLocked ? "Locked" : "Open",
-                        cls: transfersLocked ? "text-yellow-400" : "text-green-400" },
-                      { label: "Standard",  value: "ERC-721A", cls: undefined },
-                    ].map(({ label, value, cls }) => (
-                      <div key={label} className="p-3 rounded-xl bg-background border border-border">
-                        <p className="text-[10px] text-foreground/40 uppercase tracking-[0.1em] mb-1">{label}</p>
-                        <p className={`text-xs font-bold ${cls ?? "text-foreground"}`}>{value}</p>
-                      </div>
-                    ))}
-                  </div>
-                  {explorerBase && (
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { label: "Code", tab: "contract", Icon: BarChart3 },
-                        { label: "Logs", tab: "logs",     Icon: TrendingUp },
-                        { label: "Txs",  tab: "txs",      Icon: Zap },
-                      ].map(({ label, tab, Icon }) => (
-                        <a key={tab} href={`${explorerBase}/address/${contractAddress}?tab=${tab}`} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 text-[11px] text-foreground/50 hover:text-foreground border border-border hover:border-foreground/30 px-3 py-1.5 rounded-lg transition-all">
-                          <Icon className="w-3 h-3" />{label}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })()}
+            )}
           </div>
         </div>
       </div>
