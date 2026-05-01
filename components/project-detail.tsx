@@ -714,7 +714,7 @@ export function ProjectDetail() {
     }
 
     if (hasContract && onChainPhases && (onChainPhases as OnChainPhase[]).length > 0) {
-      return (onChainPhases as OnChainPhase[]).map((phase, idx) => {
+      return (onChainPhases as OnChainPhase[]).filter((phase) => !phase.paused).map((phase, idx) => {
         const status    = phaseStatusFromTimestamps(phase.startTime, phase.endTime, nowSecs)
         const isActive  = status === "active"
         const isDone    = status === "completed"
