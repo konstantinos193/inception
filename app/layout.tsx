@@ -102,6 +102,11 @@ export const metadata = {
   alternates: {
     canonical: 'https://elevateart.xyz',
   },
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
+  },
   other: {
     'theme-color': '#000000',
     'msapplication-TileColor': '#000000',
