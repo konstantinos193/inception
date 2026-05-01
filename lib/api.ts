@@ -72,6 +72,7 @@ export interface Project {
   contractAddress?: string | null;
   chainId?: number | null;
   subnet: SubnetInfo;
+  featured?: boolean;
 }
 
 export interface MintResult {

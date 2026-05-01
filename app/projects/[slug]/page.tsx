@@ -25,10 +25,10 @@ export async function generateMetadata(
     return { title: "Not Found — Elevate" }
   }
 
-  const favicon  = `${APP_URL}${project.logoSquare}`
+  const favicon  = project.logoSquare
   const ogImage  = project.logoWide
     ? `${APP_URL}${project.logoWide}`
-    : favicon
+    : `${APP_URL}${project.logoSquare}`
   const pfpImage = `${APP_URL}${project.logoSquare}`
 
   const title       = `${project.name} — ${getStatusLabel(project.status)}`
@@ -55,9 +55,9 @@ export async function generateMetadata(
     title,
     description,
     icons: {
-      icon:     favicon,
+      icon: favicon,
       shortcut: favicon,
-      apple:    favicon,
+      apple: favicon,
     },
     openGraph: {
       type:        "website",

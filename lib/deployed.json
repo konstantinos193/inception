@@ -35,6 +35,29 @@
           "signer": "0x0000000000000000000000000000000000000000"
         }
       ]
+    },
+    {
+      "address": "0xcf612e6062d02df5C3C23f3C7004AF4ab7b4c649",
+      "name": "Taoists",
+      "symbol": "TAOISTS",
+      "slug": "taoists",
+      "maxSupply": 10000,
+      "reservedSupply": 0,
+      "globalMaxPerWallet": 50,
+      "royaltyBps": 0,
+      "platformBps": 0,
+      "phases": [
+        {
+          "index": 0,
+          "name": "Public Mint",
+          "price": 0.256,
+          "maxPerWallet": 50,
+          "maxSupply": 0,
+          "startTime": 1777730400,
+          "endTime": 0,
+          "signer": "0x0000000000000000000000000000000000000000"
+        }
+      ]
     }
   ]
 }

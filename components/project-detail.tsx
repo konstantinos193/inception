@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import MintGraphic from "@/components/mint-graphic"
 import ContractInfo from "./contract-info"
+import { TaoIcon } from "@/components/tao-icon"
 import { getCollectionTheme, CollectionTheme } from "@/lib/collection-theme"
 import {
   fetchProject,
@@ -109,7 +110,7 @@ function formatCountdown(secs: number): string {
   const h = Math.floor((secs % 86400) / 3600)
   const m = Math.floor((secs % 3600) / 60)
   const s = secs % 60
-  if (d > 0) return `${d}d ${h.toString().padStart(2, "0")}h ${m.toString().padStart(2, "0")}m`
+  if (d > 0) return `${d}d ${h.toString().padStart(2, "0")}h ${m.toString().padStart(2, "0")}m ${s.toString().padStart(2, "0")}s`
   return [h, m, s].map(n => n.toString().padStart(2, "0")).join(":")
 }
 
@@ -164,6 +165,26 @@ export function ProjectDetail() {
     const id = setInterval(loadOnChainStatus, 15_000)
     return () => clearInterval(id)
   }, [loadOnChainStatus])
+
+  // Update favicon dynamically based on project
+  useEffect(() => {
+    if (project?.logoSquare) {
+      const faviconUrl = project.logoSquare
+      
+      // Remove existing favicon links
+      const existingLinks = document.querySelectorAll("link[rel*='icon']")
+      existingLinks.forEach(link => link.remove())
+      
+      // Add new favicon links with multiple rel values for better browser support
+      const rels = ['icon', 'shortcut icon', 'apple-touch-icon']
+      rels.forEach(rel => {
+        const link = document.createElement('link')
+        link.rel = rel
+        link.href = faviconUrl
+        document.head.appendChild(link)
+      })
+    }
+  }, [project])
 
   const contractAddress = (onChainStatus?.deployed ? onChainStatus.contractAddress : null) as `0x${string}` | null
   const hasContract = !!onChainStatus?.deployed
@@ -764,11 +785,11 @@ export function ProjectDetail() {
             {/* Price and Supply */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <span className={`font-mono font-bold ${phase.price === 0n ? "text-green-400" : "text-foreground"}`}>
-                  {phase.price === 0n ? "Free" : `${fmt(phase.price)} ${displayCurrency}`}
+                <span className={`font-mono font-bold ${phase.price === 0n ? "text-green-400" : "text-foreground"} flex items-center gap-1`}>
+                  {phase.price === 0n ? "Free" : <>{fmt(phase.price)} <span className="flex items-center justify-center w-3 h-3 rounded-full bg-white"><img alt="T" className="w-2 h-2" src="/bittensor-logo.svg" /></span></>}
                 </span>
               </div>
-              <span className="text-xs text-foreground/50 font-mono">
+              <span className="text-xs text-foreground/50 font-mono flex items-center">
                 {minted.toLocaleString()} / {maxSupply === 0 ? "∞" : maxSupply.toLocaleString()}
               </span>
             </div>
@@ -872,10 +893,10 @@ export function ProjectDetail() {
 
           {/* Price and Supply */}
           <div className="flex items-center justify-between mb-3">
-            <span className={`font-mono font-bold ${phase.price === 0 ? "text-green-400" : "text-foreground"}`}>
-              {phase.price === 0 ? "Free" : `${phase.price} TAO`}
+            <span className={`font-mono font-bold ${phase.price === 0 ? "text-green-400" : "text-foreground"} flex items-center gap-1`}>
+              {phase.price === 0 ? "Free" : <>{phase.price} <span className="flex items-center justify-center w-3 h-3 rounded-full bg-white"><img alt="T" className="w-2 h-2" src="/bittensor-logo.svg" /></span></>}
             </span>
-            <span className="text-xs text-foreground/50 font-mono">
+            <span className="text-xs text-foreground/50 font-mono flex items-center">
               {minted.toLocaleString()} / {maxSupply === 0 ? "∞" : maxSupply.toLocaleString()}
             </span>
           </div>
@@ -1226,7 +1247,7 @@ export function ProjectDetail() {
 
             {/* Mint Progress card — right side of banner */}
             {hasContract && (
-              <div className="absolute right-0 top-0 w-48 sm:w-64 lg:w-[360px]">
+              <div className="absolute right-0 top-0 w-48 sm:w-64 lg:w-[360px] lg:right-10">
                 <div className="rounded-xl lg:rounded-2xl bg-white/80 backdrop-blur-md border border-white/30 p-2.5 sm:p-3 lg:p-5 shadow-lg">
                   <p className="text-gray-800 font-semibold text-xs sm:text-sm lg:text-base mb-2 lg:mb-3">Mint Progress:</p>
                   <div className="h-1.5 lg:h-2 bg-gray-300 rounded-full overflow-hidden mb-1.5 lg:mb-2">
@@ -1266,10 +1287,10 @@ export function ProjectDetail() {
 
             {/* About */}
             <div className="space-y-6">
-              {/* 1:1 PFP above info */}
+              {/* 1:1 PFP + Social Links on desktop */}
               {project.logoSquare && (
-                <div className="flex justify-start hidden lg:flex">
-                  <div className="relative aspect-square w-64 rounded-2xl overflow-hidden border border-border/50">
+                <div className="hidden lg:flex items-end gap-4 justify-between">
+                  <div className="relative aspect-square w-64 rounded-2xl overflow-hidden border border-border/50 flex-shrink-0">
                     <Image
                       src={project.logoSquare}
                       alt={project.name}
@@ -1278,6 +1299,31 @@ export function ProjectDetail() {
                       unoptimized
                     />
                   </div>
+                  {(project.twitter || project.discord || project.website) && (
+                    <div className="flex items-center gap-2 ml-auto pb-3">
+                      {project.twitter && (
+                        <a href={project.twitter} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-center w-8 h-8 rounded-lg border hover:border-foreground/30 transition-all"
+                          style={{ color: "var(--electric-blue)", borderColor: "var(--electric-blue)" }}>
+                          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.259 5.63zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        </a>
+                      )}
+                      {project.discord && (
+                        <a href={project.discord} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-center w-8 h-8 rounded-lg border hover:border-foreground/30 transition-all"
+                          style={{ color: "var(--electric-blue)", borderColor: "var(--electric-blue)" }}>
+                          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.08.114 18.1.133 18.115a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+                        </a>
+                      )}
+                      {project.website && (
+                        <a href={project.website} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center justify-center w-8 h-8 rounded-lg border hover:border-foreground/30 transition-all"
+                          style={{ color: "var(--electric-blue)", borderColor: "var(--electric-blue)" }}>
+                          <Globe className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               {/* About section (both mobile and desktop) */}
@@ -1286,31 +1332,6 @@ export function ProjectDetail() {
                 <p className="text-foreground/60 text-sm mt-1 block lg:hidden">{project.tagline}</p>
                 {project.description && (
                   <p className="text-foreground/60 text-base leading-snug mt-3 hidden lg:block">{project.description}</p>
-                )}
-                {(project.twitter || project.discord || project.website) && (
-                  <div className="flex items-center gap-2 pt-3">
-                    {project.twitter && (
-                      <a href={project.twitter} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center justify-center w-8 h-8 rounded-lg border hover:border-foreground/30 transition-all"
-                        style={{ color: "var(--electric-blue)", borderColor: "var(--electric-blue)" }}>
-                        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.259 5.63zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                      </a>
-                    )}
-                    {project.discord && (
-                      <a href={project.discord} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center justify-center w-8 h-8 rounded-lg border hover:border-foreground/30 transition-all"
-                        style={{ color: "var(--electric-blue)", borderColor: "var(--electric-blue)" }}>
-                        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-current"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.08.114 18.1.133 18.115a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
-                      </a>
-                    )}
-                    {project.website && (
-                      <a href={project.website} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center justify-center w-8 h-8 rounded-lg border hover:border-foreground/30 transition-all"
-                        style={{ color: "var(--electric-blue)", borderColor: "var(--electric-blue)" }}>
-                        <Globe className="w-3.5 h-3.5" />
-                      </a>
-                    )}
-                  </div>
                 )}
               </div>
             </div>

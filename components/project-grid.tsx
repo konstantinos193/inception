@@ -18,6 +18,9 @@ export function ProjectGrid({ projects }: ProjectGridProps) {
   }
 
   const sorted = [...projects].sort((a, b) => {
+    // Featured projects first, then by status
+    if (a.featured && !b.featured) return -1
+    if (!a.featured && b.featured) return 1
     const order = { live: 0, upcoming: 1, ended: 2 }
     return order[a.status] - order[b.status]
   })
