@@ -465,14 +465,16 @@ export function ProjectDetail() {
   // ── Write contract ─────────────────────────────────────────────────────────
 
   const { writeContractAsync, data: txHash, isPending: isWritePending, error: writeError, reset: resetWrite } = useWriteContract()
+  const { data: receipt, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({ hash: txHash })
 
   const [txConfirmed, setTxConfirmed] = useState<boolean>(false)
   const [txConfirming, setTxConfirming] = useState<boolean>(false)
 
   useEffect(() => {
-    if (txHash && activeOnChainPhase && selectedPhaseIndex !== null && !txConfirmed) {
-      setTxConfirming(true)
-      
+    if (isTxSuccess && receipt && txHash && activeOnChainPhase && selectedPhaseIndex !== null && !txConfirmed) {
+      setTxConfirmed(true)
+      setTxConfirming(false)
+
       submitMintForConfirmation({
         txHash,
         chainId,
@@ -483,45 +485,16 @@ export function ProjectDetail() {
         phaseName: activeOnChainPhase.name,
         priceEach: Number(activeOnChainPhase.price),
       }).then(() => {
-        const pollInterval = setInterval(async () => {
-          try {
-            const status = await getTransactionStatus({
-              txHash,
-              chainId,
-              network: chainId === 11155111 ? "sepolia" : 
-                      chainId === 964 ? "mainnet" : 
-                      chainId === 945 ? "testnet" : "mainnet"
-            })
-            
-            if (status.confirmed) {
-              setTxConfirmed(true)
-              setTxConfirming(false)
-              clearInterval(pollInterval)
-              
-              setMintSuccess({ txHash, quantity: mintQuantity })
-              setMintError(null)
-              loadOnChainStatus()
-              
-              if (connectedWallet) {
-                fetchWalletPhaseMints(slug, selectedPhaseIndex, connectedWallet).then(setWalletPhaseMinted)
-              }
-            }
-          } catch (error) {
-            console.error("Error checking transaction status:", error)
-          }
-        }, 2000) // Poll every 2 seconds
-        
-        setTimeout(() => {
-          clearInterval(pollInterval)
-          setTxConfirming(false)
-        }, 60000)
-        
-        return () => clearInterval(pollInterval)
-      }).catch(() => {
-        setTxConfirming(false)
+        setMintSuccess({ txHash, quantity: mintQuantity })
+        setMintError(null)
+        loadOnChainStatus()
+
+        if (connectedWallet) {
+          fetchWalletPhaseMints(slug, selectedPhaseIndex, connectedWallet).then(setWalletPhaseMinted)
+        }
       })
     }
-  }, [txHash, activeOnChainPhase, selectedPhaseIndex, slug, connectedWallet, mintQuantity, txConfirmed])
+  }, [isTxSuccess, receipt, txHash, activeOnChainPhase, selectedPhaseIndex, slug, connectedWallet, mintQuantity, txConfirmed])
 
   useEffect(() => {
     if (writeError) {
