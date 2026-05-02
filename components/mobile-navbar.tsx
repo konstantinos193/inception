@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Menu, X, Sun, Moon } from "lucide-react"
 import { useTheme } from "next-themes"
 import { usePathname } from "next/navigation"
@@ -13,6 +14,7 @@ const ConnectButton = dynamic(
 )
 
 export function MobileNavbar() {
+  const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const { theme, setTheme } = useTheme()
   const pathname = usePathname()
@@ -71,20 +73,24 @@ export function MobileNavbar() {
 
         {/* Navigation links — fills remaining space */}
         <div className="flex-1 overflow-y-auto p-4 space-y-1">
-          <Link
-            href="/collections"
-            className="block px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"
-            onClick={() => setIsOpen(false)}
+          <button
+            onClick={() => {
+              router.push('/collections')
+              setIsOpen(false)
+            }}
+            className="block w-full text-left px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"
           >
             <span className="text-sm font-medium uppercase tracking-wider text-[#1a1a1a] dark:text-white">Collections</span>
-          </Link>
-          <Link
-            href="/about"
-            className="block px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"
-            onClick={() => setIsOpen(false)}
+          </button>
+          <button
+            onClick={() => {
+              router.push('/about')
+              setIsOpen(false)
+            }}
+            className="block w-full text-left px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"
           >
             <span className="text-sm font-medium uppercase tracking-wider text-[#1a1a1a] dark:text-white">About</span>
-          </Link>
+          </button>
         </div>
 
         {/* Theme toggle — pinned to bottom */}

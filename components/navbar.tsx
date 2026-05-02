@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Menu, X, Moon, Sun } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -15,6 +16,7 @@ const ConnectButton = dynamic(
 
 
 export function Navbar() {
+  const router = useRouter()
   const [hidden, setHidden] = useState(false)
   const [mounted, setMounted] = useState(false)
   const isMobile = useIsMobile()
@@ -70,12 +72,18 @@ export function Navbar() {
 
           {/* Desktop nav */}
           <div className="flex items-center gap-3">
-            <Link href="/collections" className="text-xs font-medium uppercase tracking-widest transition-colors px-3 text-[#1a1a1a] hover:text-black dark:text-white dark:hover:text-white/70">
+            <button
+              onClick={() => router.push('/collections')}
+              className="text-xs font-medium uppercase tracking-widest transition-colors px-3 text-[#1a1a1a] hover:text-black dark:text-white dark:hover:text-white/70"
+            >
               Collections
-            </Link>
-            <Link href="/about" className="text-xs font-medium uppercase tracking-widest transition-colors px-3 text-[#1a1a1a] hover:text-black dark:text-white dark:hover:text-white/70">
+            </button>
+            <button
+              onClick={() => router.push('/about')}
+              className="text-xs font-medium uppercase tracking-widest transition-colors px-3 text-[#1a1a1a] hover:text-black dark:text-white dark:hover:text-white/70"
+            >
               About
-            </Link>
+            </button>
             <ConnectButton />
             {mounted && (
               <button
