@@ -73,13 +73,13 @@ export function Navbar() {
           {/* Desktop nav */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push('/collections')}
+              onClick={() => window.location.href = '/collections'}
               className="text-xs font-medium uppercase tracking-widest transition-colors px-3 text-[#1a1a1a] hover:text-black dark:text-white dark:hover:text-white/70"
             >
               Collections
             </button>
             <button
-              onClick={() => router.push('/about')}
+              onClick={() => window.location.href = '/about'}
               className="text-xs font-medium uppercase tracking-widest transition-colors px-3 text-[#1a1a1a] hover:text-black dark:text-white dark:hover:text-white/70"
             >
               About

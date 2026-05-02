@@ -75,7 +75,7 @@ export function MobileNavbar() {
         <div className="flex-1 overflow-y-auto p-4 space-y-1">
           <button
             onClick={() => {
-              router.push('/collections')
+              window.location.href = '/collections'
               setIsOpen(false)
             }}
             className="block w-full text-left px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"
@@ -84,7 +84,7 @@ export function MobileNavbar() {
           </button>
           <button
             onClick={() => {
-              router.push('/about')
+              window.location.href = '/about'
               setIsOpen(false)
             }}
             className="block w-full text-left px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"
