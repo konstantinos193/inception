@@ -16,6 +16,7 @@ import MintGraphic from "@/components/mint-graphic"
 import ContractInfo from "./contract-info"
 import { TaoIcon } from "@/components/tao-icon"
 import { MintSuccessModal } from "@/components/mint-success-modal"
+import { NFTDetailModal } from "@/components/nft-detail-modal"
 import { getCollectionTheme, CollectionTheme } from "@/lib/collection-theme"
 import {
   fetchProject,
@@ -82,6 +83,7 @@ function decodeContractError(err: any, abi: any[]): string | null {
 
 // ─── Rarity Badge Colors ───────────────────────────────────────────
 function getRarityColor(rarity: string) {
+  if (!rarity) return "bg-gray-500/20 text-gray-400 border-gray-500/30"
   switch (rarity.toLowerCase()) {
     case "legendary":
     case "one of one":
@@ -129,6 +131,7 @@ export function ProjectDetail() {
   const [recentlyMinted, setRecentlyMinted] = useState<SampleNFT[]>([])
   const [loadingNFTs, setLoadingNFTs] = useState(false)
   const [nftRarityData, setNftRarityData] = useState<Map<number, NFTRarity>>(new Map())
+  const [selectedNFT, setSelectedNFT] = useState<SampleNFT | null>(null)
 
   // ── Allowlist checker (API-based for projects without contract) ────────────
   const [alWallet, setAlWallet] = useState("")
@@ -385,12 +388,9 @@ export function ProjectDetail() {
     return `${explorerBase}/token/${contractAddress}?a=${tokenId}`
   }
 
-  // Handle NFT click - open in block explorer
-  const handleNFTClick = (tokenId: number) => {
-    const explorerUrl = getExplorerUrl(tokenId)
-    if (explorerUrl) {
-      window.open(explorerUrl, '_blank', 'noopener,noreferrer')
-    }
+  // Handle NFT click - open detail modal
+  const handleNFTClick = (nft: SampleNFT) => {
+    setSelectedNFT(nft)
   }
 
   // Timeout fallback for slow RPC
@@ -1392,12 +1392,12 @@ export function ProjectDetail() {
                       <div
                         key={nft._id}
                         className="flex-shrink-0 w-48 rounded-xl border border-border bg-card/40 overflow-hidden cursor-pointer hover:border-foreground/20 transition-all group snap-start"
-                        onClick={() => handleNFTClick(nft.tokenId)}
+                        onClick={() => handleNFTClick(nft)}
                         title={`View ${nft.name} on block explorer`}
                       >
                         <div className="relative aspect-square bg-card">
                           <Image
-                            src={nftImageUrl(slug, nft.tokenId)}
+                            src={nft.image}
                             alt={nft.name} fill
                             className="object-cover group-hover:scale-105 transition-transform duration-300"
                             sizes={IMAGE_SIZES.nftCard}
@@ -1583,6 +1583,14 @@ export function ProjectDetail() {
           totalCost={activeOnChainPhase ? (activeOnChainPhase.price * BigInt(mintSuccess.quantity)).toString() : "0"}
           currency={project?.currency || "TAO"}
           receipt={receipt}
+        />
+      )}
+
+      {/* NFT Detail Modal */}
+      {selectedNFT && (
+        <NFTDetailModal
+          nft={selectedNFT}
+          onClose={() => setSelectedNFT(null)}
         />
       )}
     </div>

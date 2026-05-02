@@ -10,12 +10,21 @@ export interface MintPhase {
 }
 
 export interface SampleNFT {
-  id: number
+  _id: string
+  tokenId: number
   name: string
   image: string
   rarity: string
   mintedBy: string
   mintedAt: string
+  animationUrl?: string
+  rarityTier?: string
+  rarityRank?: number
+  traits?: Array<{ trait_type: string; value: string }>
+  contractAddress?: string
+  chainId?: number
+  explorerUrl?: string
+  currentOwner?: string
 }
 
 export interface SubnetInfo {
