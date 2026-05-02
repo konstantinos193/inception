@@ -202,7 +202,7 @@ export function ProjectDetail() {
   // Convert backend's string-price phases to OnChainPhase (BigInt) format for compatibility
   const onChainPhases: OnChainPhase[] | undefined = useMemo(() => {
     if (!onChainStatus?.deployed || !onChainStatus.onChain) return undefined
-    return onChainStatus.onChain.phases.map(p => ({
+    return onChainStatus.onChain.phases.filter(p => !p.paused).map(p => ({
       name: p.name,
       startTime: BigInt(p.startTime),
       endTime: BigInt(p.endTime),

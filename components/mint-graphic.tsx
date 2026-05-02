@@ -88,7 +88,7 @@ export default function MintGraphic({
             {/* Phase selector - hidden on desktop since phases are selectable from main phase cards */}
             {phases && phases.length > 1 && (
               <div className="flex gap-2 flex-wrap lg:hidden">
-                {phases.map((phase) => (
+                {phases.filter(p => !p.paused).map((phase) => (
                   <button
                     key={phase.index}
                     onClick={() => onPhaseSelect?.(phase.index)}
@@ -203,7 +203,7 @@ export default function MintGraphic({
             {/* Phase selector (only shown when multiple phases are active) */}
             {phases && phases.length > 1 && (
               <div className="flex gap-2 flex-wrap">
-                {phases.map((phase) => (
+                {phases.filter(p => !p.paused).map((phase) => (
                   <button
                     key={phase.index}
                     onClick={() => onPhaseSelect?.(phase.index)}
