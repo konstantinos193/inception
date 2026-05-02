@@ -50,7 +50,7 @@ export function Navbar() {
   return (
     <nav className={`fixed top-3 w-full z-50 transition-[transform,opacity] duration-300 ease-in-out will-change-transform ${hidden ? "-translate-y-[calc(100%+12px)] opacity-0" : "translate-y-0 opacity-100"}`}>
       <div
-        className="max-w-7xl mx-auto px-6 lg:px-10 bg-card/50 border-t-0 border-b rounded-b-xl backdrop-blur-md"
+        className="max-w-7xl mx-auto px-6 lg:px-10 bg-white/90 dark:bg-card/50 border-t-0 border-b rounded-b-xl backdrop-blur-md"
         style={{ borderColor: "var(--electric-blue)", boxShadow: "0 8px 32px rgba(0,0,0,0.35), 0 2px 16px rgba(76,159,252,0.08)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
       >
         <div className="flex items-center justify-between h-16">
@@ -80,7 +80,7 @@ export function Navbar() {
             {mounted && (
               <button
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                className="p-2 rounded-md transition-colors hover:bg-accent text-[#1a1a1a] dark:text-white"
+                className="p-2 rounded-full transition-colors hover:bg-accent text-[#1a1a1a] dark:text-white border border-[#1a1a1a] dark:border-white bg-white dark:bg-white/10"
                 aria-label="Toggle theme"
               >
                 {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}

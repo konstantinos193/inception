@@ -22,7 +22,7 @@ export function MobileNavbar() {
   return (
     <>
       {/* Top bar */}
-      <nav className="fixed top-0 w-full z-50 bg-card border-b border-border/20">
+      <nav className="fixed top-0 w-full z-50 bg-white/90 dark:bg-card border-b border-border/20">
         <div className="flex items-center justify-between h-16 px-4">
           <Link href="/" className="shrink-0 flex items-center">
             <img src="/logo-mark.png" alt="TAO Launchpad" className="w-8 h-8 object-contain" />
@@ -31,7 +31,7 @@ export function MobileNavbar() {
             <ConnectButton />
             <button
               onClick={() => setIsOpen(true)}
-              className="w-8 h-8 flex items-center justify-center text-foreground"
+              className="w-8 h-8 flex items-center justify-center text-[#1a1a1a] dark:text-white"
               aria-label="Open menu"
             >
               <Menu className="w-5 h-5" />
@@ -50,7 +50,7 @@ export function MobileNavbar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 right-0 w-72 bg-card z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
+        className={`fixed inset-y-0 right-0 w-72 bg-white dark:bg-card z-50 flex flex-col transform transition-transform duration-300 ease-in-out ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -58,11 +58,11 @@ export function MobileNavbar() {
         <div className="flex items-center justify-between px-5 h-16 border-b border-border/20 flex-shrink-0">
           <div className="flex items-center gap-2">
             <img src="/logo-mark.png" alt="TAO Launchpad" className="w-6 h-6 object-contain" />
-            <span className="text-sm font-semibold text-foreground tracking-wider">MENU</span>
+            <span className="text-sm font-semibold text-[#1a1a1a] dark:text-white">MENU</span>
           </div>
           <button
             onClick={() => setIsOpen(false)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted/50 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted/50 transition-colors text-[#1a1a1a] dark:text-white"
             aria-label="Close menu"
           >
             <X className="w-4 h-4" />
@@ -76,14 +76,14 @@ export function MobileNavbar() {
             className="block px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"
             onClick={() => setIsOpen(false)}
           >
-            <span className="text-sm font-medium uppercase tracking-wider text-foreground">Collections</span>
+            <span className="text-sm font-medium uppercase tracking-wider text-[#1a1a1a] dark:text-white">Collections</span>
           </Link>
           <Link
             href="/about"
             className="block px-4 py-3 rounded-lg hover:bg-muted/50 transition-colors"
             onClick={() => setIsOpen(false)}
           >
-            <span className="text-sm font-medium uppercase tracking-wider text-foreground">About</span>
+            <span className="text-sm font-medium uppercase tracking-wider text-[#1a1a1a] dark:text-white">About</span>
           </Link>
         </div>
 
@@ -95,7 +95,7 @@ export function MobileNavbar() {
             aria-label="Toggle theme"
           >
             {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            <span className="text-sm text-foreground">Toggle theme</span>
+            <span className="text-sm text-[#1a1a1a] dark:text-white">Toggle theme</span>
           </button>
         </div>
       </aside>

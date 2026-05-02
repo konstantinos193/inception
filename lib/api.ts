@@ -193,6 +193,20 @@ export async function fetchRecentlyMinted(slug: string, wallet?: string): Promis
   }
   
   // If no wallet, get all recently minted NFTs (off-chain fallback)
+  // Try local Next.js API route first, then fallback to external backend
+  try {
+    const localRes = await fetch(`/api/mint/recent/${slug}`);
+    if (localRes.ok) {
+      const data = await localRes.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
+    }
+  } catch (localError) {
+    console.log("Local API route failed, trying external backend:", localError);
+  }
+
+  // Fallback to external backend
   const res = await fetch(`${API_URL}/api/mint/recent/${slug}`);
   if (!res.ok) throw new Error("Failed to fetch recently minted NFTs");
   return res.json();

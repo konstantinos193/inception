@@ -101,7 +101,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
           />
         </div>
         <div className="flex justify-between text-xs text-gray-400 mt-1">
-          <span>{progress.toFixed(0)}% minted</span>
+          <span>{project.minted} / {project.supply} minted</span>
           <span>{project.participants.toLocaleString()} holders</span>
         </div>
       </div>

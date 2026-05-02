@@ -15,8 +15,8 @@ export function Footer() {
           {/* Logo */}
           <div className="flex items-center gap-3">
             <Link href="/">
-              <Image src="/logo-dark.png" alt="Elevate" width={140} height={40} className="h-10 w-auto hidden dark:block" />
-              <Image src="/logo-light.png" alt="Elevate" width={140} height={40} className="h-10 w-auto block dark:hidden" />
+              <Image src="/logo-dark.png" alt="Elevate" width={140} height={40} className="h-10 w-auto hidden dark:block" style={{ width: 'auto', height: 'auto' }} />
+              <Image src="/logo-light.png" alt="Elevate" width={140} height={40} className="h-10 w-auto block dark:hidden" style={{ width: 'auto', height: 'auto' }} />
             </Link>
           </div>
 

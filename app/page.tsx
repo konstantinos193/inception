@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Navbar } from "@/components/navbar"
 import { Hero } from "@/components/hero"
 import { ProjectGrid } from "@/components/project-grid"
 import { fetchProjects, type Project } from "@/lib/api"
@@ -37,7 +36,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <Navbar />
       <Hero />
       {loading ? (
         <div className="flex justify-center py-20">

@@ -54,7 +54,7 @@ export function SecondaryFeaturedCard({ project }: { project: Project }) {
           <span>{project.mintPrice} {project.currency}</span>
         </div>
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span>{progress}% minted</span>
+          <span>{project.minted} / {project.supply} minted</span>
         </div>
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <span>{project.participants.toLocaleString()} holders</span>

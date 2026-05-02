@@ -89,7 +89,7 @@ export function FeaturedCollectionCard({ project }: { project: Project }) {
                   {project.mintPrice} {project.currency}
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/20 text-xs text-white/60 uppercase tracking-wide bg-white/10 backdrop-blur-sm">
-                  {progress}% minted
+                  {project.minted} / {project.supply} minted
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-white/20 text-xs text-white/60 uppercase tracking-wide bg-white/10 backdrop-blur-sm">
                   {project.participants.toLocaleString()} holders

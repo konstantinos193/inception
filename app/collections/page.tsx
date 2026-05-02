@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { Navbar } from "@/components/navbar"
-import { fetchProjects, type Project } from "@/lib/api"
+import { fetchProjects, fetchOnChainStatus, type Project } from "@/lib/api"
 import { Loader2 } from "lucide-react"
 
 function StatusBadge({ status }: { status: Project["status"] }) {
@@ -23,6 +22,7 @@ function StatusBadge({ status }: { status: Project["status"] }) {
 
 export default function CollectionsPage() {
   const [projects, setProjects] = useState<Project[]>([])
+  const [onChainData, setOnChainData] = useState<Record<string, { totalMinted: number }>>({})
   const [loading, setLoading] = useState(true)
   const [selectedStatus, setSelectedStatus] = useState<string>("all")
 
@@ -32,6 +32,32 @@ export default function CollectionsPage() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
+
+  // Fetch on-chain data for all projects
+  useEffect(() => {
+    const fetchOnChainData = async () => {
+      if (projects.length === 0) return
+
+      const data: Record<string, { totalMinted: number }> = {}
+
+      for (const project of projects) {
+        if (project.contractAddress) {
+          try {
+            const status = await fetchOnChainStatus(project.slug)
+            if (status?.onChain) {
+              data[project.slug] = { totalMinted: status.onChain.totalMinted }
+            }
+          } catch (error) {
+            console.error(`Failed to fetch on-chain data for ${project.slug}:`, error)
+          }
+        }
+      }
+
+      setOnChainData(data)
+    }
+
+    fetchOnChainData()
+  }, [projects])
 
   // Real-time updates for all projects
   useEffect(() => {
@@ -70,8 +96,6 @@ export default function CollectionsPage() {
           backgroundPosition: "center",
         }}
       />
-
-      <Navbar />
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-10 pt-28 pb-20">
 
@@ -125,7 +149,9 @@ export default function CollectionsPage() {
         ) : filtered.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filtered.map(project => {
-              const progress = Math.min(100, Math.round((project.minted / project.supply) * 100))
+              const onChainMinted = onChainData[project.slug]?.totalMinted
+              const displayMinted = onChainMinted ?? project.minted
+              const progress = Math.min(100, Math.round((displayMinted / project.supply) * 100))
               return (
                 <Link
                   key={project.slug}
@@ -176,7 +202,7 @@ export default function CollectionsPage() {
 
                       <div className="flex items-center justify-between text-xs mb-3">
                         <span className="text-foreground/70">{project.mintPrice} {project.currency}</span>
-                        <span className="text-foreground/70">{progress}% minted</span>
+                        <span className="text-foreground/70">{displayMinted} / {project.supply} minted</span>
                       </div>
 
                       <div className="w-full bg-white/10 rounded-full h-1">

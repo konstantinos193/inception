@@ -29,6 +29,7 @@ const goldman = Goldman({
 })
 
 export const metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
   title: {
     default: "Elevate | Premium NFT Launchpad on Bittensor EVM",
     template: "%s | Elevate"

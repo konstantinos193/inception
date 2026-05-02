@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import MintGraphic from "@/components/mint-graphic"
 import ContractInfo from "./contract-info"
 import { TaoIcon } from "@/components/tao-icon"
+import { MintSuccessModal } from "@/components/mint-success-modal"
 import { getCollectionTheme, CollectionTheme } from "@/lib/collection-theme"
 import {
   fetchProject,
@@ -136,8 +137,9 @@ export function ProjectDetail() {
 
   // ── On-chain minting state ─────────────────────────────────────────────────
   const [mintQuantity, setMintQuantity] = useState(1)
-  const [mintSuccess, setMintSuccess] = useState<{ txHash: string; quantity: number } | null>(null)
+  const [mintSuccess, setMintSuccess] = useState<{ txHash: string; quantity: number; tokenIds?: number[] } | null>(null)
   const [mintError, setMintError] = useState<string | null>(null)
+  const [showMintSuccessModal, setShowMintSuccessModal] = useState(false)
 
   // Wallet context
   const { address: connectedWallet, isConnected } = useAccount()
@@ -473,6 +475,20 @@ export function ProjectDetail() {
       setTxConfirmed(true)
       setTxConfirming(false)
 
+      // Extract token IDs from transaction receipt logs
+      // The Transfer event topics[3] contains the tokenId for ERC721
+      let tokenIds: number[] = []
+      if (receipt.logs && receipt.logs.length > 0) {
+        const firstTokenId = Number(receipt.logs[0]?.topics[3] || 1)
+        tokenIds = Array.from({ length: mintQuantity }, (_, i) => firstTokenId + i)
+      }
+
+      // Show success popup immediately since transaction is confirmed on-chain
+      setMintSuccess({ txHash, quantity: mintQuantity, tokenIds })
+      setMintError(null)
+      setShowMintSuccessModal(true)
+
+      // Try to submit to backend, but don't block success popup on failure
       submitMintForConfirmation({
         txHash,
         chainId,
@@ -483,8 +499,15 @@ export function ProjectDetail() {
         phaseName: activeOnChainPhase.name,
         priceEach: Number(activeOnChainPhase.price),
       }).then(() => {
-        setMintSuccess({ txHash, quantity: mintQuantity })
-        setMintError(null)
+        loadOnChainStatus()
+        loadRecentlyMinted(false)
+
+        if (connectedWallet) {
+          fetchWalletPhaseMints(slug, selectedPhaseIndex, connectedWallet).then(setWalletPhaseMinted)
+        }
+      }).catch((err) => {
+        console.error("[mint] Backend confirmation failed:", err)
+        // Still refresh data even if backend confirmation fails
         loadOnChainStatus()
         loadRecentlyMinted(false)
 
@@ -551,6 +574,7 @@ export function ProjectDetail() {
     }
 
     try {
+      setTxConfirming(true)
       console.log("[mint] submitting tx", {
         phaseIndex: selectedPhaseIndex,
         quantity: mintQuantity,
@@ -563,6 +587,7 @@ export function ProjectDetail() {
       const decoded = decodeContractError(err, TAO_NFT_ABI)
       console.error("[mint] writeContractAsync failed:", err)
       setMintError(decoded ?? err?.shortMessage ?? err?.message ?? "Mint failed")
+      setTxConfirming(false)
     }
   }
 
@@ -1345,39 +1370,11 @@ export function ProjectDetail() {
 
             <div className="border-b border-foreground/20 mt-4" />
 
-            {/* Phase Selector & Contract Info */}
-            {((hasContract && onChainPhases && (onChainPhases as OnChainPhase[]).length > 0) || (project.phases && project.phases.length > 0) || (hasContract && contractAddress)) && (
-              <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
-                {/* Phase Selector */}
-                <div className="flex-1">
-                  <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-4">Mint Phases</p>
-                  <div className="space-y-2">{renderPhases()}</div>
-                </div>
-
-                {/* Contract Info */}
-                {hasContract && contractAddress && (() => {
-                  const explorerBase =
-                    onChainStatus?.chainId === 11155111 ? "https://sepolia.etherscan.io" :
-                    onChainStatus?.chainId === 964       ? "https://evm.taostats.io"     :
-                    onChainStatus?.chainId === 945       ? "https://test.taostats.io"    : null
-                  const contractUrl = explorerBase ? `${explorerBase}/address/${contractAddress}` : null
-                  const transfersLocked = onChainTransfersLocked as boolean | undefined
-                  const royaltyBps = onChainStatus?.onChain?.royaltyBps
-                  const owner = onChainStatus?.onChain?.owner
-
-                  return (
-                    <div className="w-full lg:w-[300px] lg:shrink-0">
-                      <ContractInfo
-                        contractAddress={contractAddress}
-                        explorerUrl={contractUrl}
-                        owner={owner}
-                        royaltyBps={royaltyBps}
-                        phasesCount={(onChainPhases as OnChainPhase[]).length || (project.phases?.length || 0)}
-                        transfersLocked={transfersLocked}
-                      />
-                    </div>
-                  )
-                })()}
+            {/* Phase Selector */}
+            {((hasContract && onChainPhases && (onChainPhases as OnChainPhase[]).length > 0) || (project.phases && project.phases.length > 0)) && (
+              <div className="mt-8">
+                <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-foreground/35 mb-4">Mint Phases</p>
+                <div className="space-y-2">{renderPhases()}</div>
               </div>
             )}
 
@@ -1539,12 +1536,30 @@ export function ProjectDetail() {
               mintError={mintError}
             />
 
-            {mintSuccess && (
-              <div className="flex items-center gap-2 text-green-400 text-sm p-3 rounded-xl bg-green-500/10 border border-green-500/20">
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-                <span>Minted {mintSuccess.quantity} NFT{mintSuccess.quantity > 1 ? "s" : ""}! <span className="font-mono text-[10px] opacity-60">{mintSuccess.txHash.slice(0, 10)}…</span></span>
-              </div>
-            )}
+            {/* Contract Info - desktop only */}
+            {hasContract && contractAddress && (() => {
+              const explorerBase =
+                onChainStatus?.chainId === 11155111 ? "https://sepolia.etherscan.io" :
+                onChainStatus?.chainId === 964       ? "https://evm.taostats.io"     :
+                onChainStatus?.chainId === 945       ? "https://test.taostats.io"    : null
+              const contractUrl = explorerBase ? `${explorerBase}/address/${contractAddress}` : null
+              const transfersLocked = onChainTransfersLocked as boolean | undefined
+              const royaltyBps = onChainStatus?.onChain?.royaltyBps
+              const owner = onChainStatus?.onChain?.owner
+
+              return (
+                <ContractInfo
+                  key="contract-info"
+                  contractAddress={contractAddress}
+                  explorerUrl={contractUrl}
+                  owner={owner}
+                  royaltyBps={royaltyBps}
+                  phasesCount={(onChainPhases as OnChainPhase[]).length || (project.phases?.length || 0)}
+                  transfersLocked={transfersLocked}
+                />
+              )
+            })()}
+
             {mintError && (
               <div className="flex items-start gap-2 text-red-400 text-sm p-3 rounded-xl bg-red-500/10 border border-red-500/20">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
@@ -1554,6 +1569,22 @@ export function ProjectDetail() {
           </div>
         </div>
       </div>
+
+      {/* Mint Success Modal */}
+      {mintSuccess && mintSuccess.tokenIds && (
+        <MintSuccessModal
+          isOpen={showMintSuccessModal}
+          onClose={() => setShowMintSuccessModal(false)}
+          slug={slug}
+          tokenIds={mintSuccess.tokenIds}
+          txHash={mintSuccess.txHash}
+          quantity={mintSuccess.quantity}
+          phaseName={activeOnChainPhase?.name || ""}
+          totalCost={activeOnChainPhase ? (activeOnChainPhase.price * BigInt(mintSuccess.quantity)).toString() : "0"}
+          currency={project?.currency || "TAO"}
+          receipt={receipt}
+        />
+      )}
     </div>
   )
 }

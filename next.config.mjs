@@ -35,6 +35,7 @@ const nextConfig = {
     // parallelServerBuildTraces: true,
     // parallelServerCompiles: true,
   },
+  allowedDevOrigins: ['192.168.1.231'],
 }
 
 mergeConfig(nextConfig, userConfig)

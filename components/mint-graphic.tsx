@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 
 interface MintGraphicProps {
   slug: string
@@ -56,9 +56,20 @@ export default function MintGraphic({
   mintError,
 }: MintGraphicProps) {
   const [videoError, setVideoError] = useState(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   // Use provided graphic path or default to collection-specific path
   const videoSrc = graphicPath || `/collections/${slug}/mint-graphic.mp4`
+
+  // Cleanup video on unmount
+  useEffect(() => {
+    return () => {
+      if (videoRef.current) {
+        videoRef.current.pause()
+        videoRef.current.src = ""
+      }
+    }
+  }, [])
 
   return (
     <div className="flex justify-center -mt-8 lg:justify-end lg:-mt-0">
@@ -69,6 +80,7 @@ export default function MintGraphic({
           <div className="relative aspect-square w-full max-w-xs rounded-2xl overflow-hidden border border-border/50 mx-auto">
             {!videoError ? (
               <video
+                ref={videoRef}
                 src={videoSrc}
                 autoPlay
                 loop
@@ -194,6 +206,7 @@ export default function MintGraphic({
             <div className="relative aspect-square w-56">
               {!videoError ? (
                 <video
+                  ref={videoRef}
                   src={videoSrc}
                   autoPlay
                   loop
