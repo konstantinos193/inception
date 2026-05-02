@@ -318,27 +318,25 @@ export function ProjectDetail() {
   }, [connectedWallet, slug, activeOnChainPhase, selectedPhaseIndex])
 
   // Load recently minted NFTs (fast — no rarity blocking)
+  const loadRecentlyMinted = useCallback(async (showSpinner: boolean) => {
+    try {
+      if (showSpinner) setLoadingNFTs(true)
+      const nfts = await fetchRecentlyMinted(slug)
+      setRecentlyMinted(nfts)
+    } catch (error) {
+      console.error("Failed to load recently minted NFTs:", error)
+      if (showSpinner) setRecentlyMinted([])
+    } finally {
+      if (showSpinner) setLoadingNFTs(false)
+    }
+  }, [slug])
+
   useEffect(() => {
     if (!slug) return
-    let cancelled = false
-
-    const loadRecentlyMinted = async (showSpinner: boolean) => {
-      try {
-        if (showSpinner) setLoadingNFTs(true)
-        const nfts = await fetchRecentlyMinted(slug)
-        if (!cancelled) setRecentlyMinted(nfts)
-      } catch (error) {
-        console.error("Failed to load recently minted NFTs:", error)
-        if (!cancelled && showSpinner) setRecentlyMinted([])
-      } finally {
-        if (!cancelled && showSpinner) setLoadingNFTs(false)
-      }
-    }
-
     loadRecentlyMinted(true)
     const interval = setInterval(() => loadRecentlyMinted(false), 30000)
-    return () => { cancelled = true; clearInterval(interval) }
-  }, [slug])
+    return () => clearInterval(interval)
+  }, [slug, loadRecentlyMinted])
 
   // Load rarity data in background (non-blocking, after NFTs are visible)
   useEffect(() => {
@@ -488,13 +486,14 @@ export function ProjectDetail() {
         setMintSuccess({ txHash, quantity: mintQuantity })
         setMintError(null)
         loadOnChainStatus()
+        loadRecentlyMinted(false)
 
         if (connectedWallet) {
           fetchWalletPhaseMints(slug, selectedPhaseIndex, connectedWallet).then(setWalletPhaseMinted)
         }
       })
     }
-  }, [isTxSuccess, receipt, txHash, activeOnChainPhase, selectedPhaseIndex, slug, connectedWallet, mintQuantity, txConfirmed])
+  }, [isTxSuccess, receipt, txHash, activeOnChainPhase, selectedPhaseIndex, slug, connectedWallet, mintQuantity, txConfirmed, loadOnChainStatus, loadRecentlyMinted])
 
   useEffect(() => {
     if (writeError) {
