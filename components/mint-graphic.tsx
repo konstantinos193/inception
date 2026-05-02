@@ -24,8 +24,11 @@ interface MintGraphicProps {
   phaseName?: string
   phasePrice?: string
   // Phase selection (when multiple phases are active)
-  phases?: Array<{ name: string; index: number; isActive: boolean; isSelected: boolean }>
+  phases?: Array<{ name: string; index: number; isActive: boolean; isSelected: boolean; paused?: boolean }>
   onPhaseSelect?: (index: number) => void
+  // Success/Error state
+  mintSuccess?: { txHash: string; quantity: number } | null
+  mintError?: string | null
 }
 
 export default function MintGraphic({
@@ -49,6 +52,8 @@ export default function MintGraphic({
   phasePrice,
   phases,
   onPhaseSelect,
+  mintSuccess,
+  mintError,
 }: MintGraphicProps) {
   const [videoError, setVideoError] = useState(false)
 
@@ -169,6 +174,16 @@ export default function MintGraphic({
             {disabledReason && !canMint && (
               <p className="text-xs text-center text-foreground/50">{disabledReason}</p>
             )}
+            {mintSuccess && (
+              <div className="flex items-center gap-2 text-green-400 text-sm p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                <span>Minted {mintSuccess.quantity} NFT{mintSuccess.quantity > 1 ? "s" : ""}!</span>
+              </div>
+            )}
+            {mintError && (
+              <div className="flex items-start gap-2 text-red-400 text-sm p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                <span>{mintError}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -283,6 +298,16 @@ export default function MintGraphic({
             </button>
             {disabledReason && !canMint && (
               <p className="text-xs text-center text-foreground/50">{disabledReason}</p>
+            )}
+            {mintSuccess && (
+              <div className="flex items-center gap-2 text-green-400 text-sm p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                <span>Minted {mintSuccess.quantity} NFT{mintSuccess.quantity > 1 ? "s" : ""}!</span>
+              </div>
+            )}
+            {mintError && (
+              <div className="flex items-start gap-2 text-red-400 text-sm p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                <span>{mintError}</span>
+              </div>
             )}
           </div>
         </div>

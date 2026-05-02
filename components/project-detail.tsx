@@ -1335,9 +1335,12 @@ export function ProjectDetail() {
                   name: (onChainPhases as OnChainPhase[])[i].name,
                   index: i,
                   isActive: true,
-                  isSelected: selectedPhaseIndex === i
+                  isSelected: selectedPhaseIndex === i,
+                  paused: (onChainPhases as OnChainPhase[])[i].paused
                 })) : undefined}
                 onPhaseSelect={(index) => { setSelectedPhaseIndex(index); setMintQuantity(1) }}
+                mintSuccess={mintSuccess}
+                mintError={mintError}
               />
             </div>
 
@@ -1529,9 +1532,12 @@ export function ProjectDetail() {
                 name: (onChainPhases as OnChainPhase[])[i].name,
                 index: i,
                 isActive: true,
-                isSelected: selectedPhaseIndex === i
+                isSelected: selectedPhaseIndex === i,
+                paused: (onChainPhases as OnChainPhase[])[i].paused
               })) : undefined}
               onPhaseSelect={(index) => { setSelectedPhaseIndex(index); setMintQuantity(1) }}
+              mintSuccess={mintSuccess}
+              mintError={mintError}
             />
 
             {mintSuccess && (
