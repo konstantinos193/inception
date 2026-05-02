@@ -532,8 +532,10 @@ export function ProjectDetail() {
         ?? writeError.message
         ?? "Transaction failed"
       setMintError(msg)
+      resetWrite()
+      setTxConfirming(false)
     }
-  }, [writeError])
+  }, [writeError, resetWrite])
 
   // ── Mint handler ───────────────────────────────────────────────────────────
 
