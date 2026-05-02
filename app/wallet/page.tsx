@@ -1,11 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { ConnectButton } from "@rainbow-me/rainbowkit"
+import { useAppKit } from "@reown/appkit/react"
 import { ArrowLeft, Wallet as WalletIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function WalletPage() {
+  const { open } = useAppKit()
+
   return (
     <div className="min-h-screen bg-black text-white">
       <div className="container mx-auto px-4 py-8">
@@ -24,7 +26,9 @@ export default function WalletPage() {
             Connect your wallet to interact with the Bittensor network
           </p>
         </div>
-        <ConnectButton />
+        <Button onClick={() => open()} className="w-full">
+          Connect Wallet
+        </Button>
       </div>
     </div>
   )
